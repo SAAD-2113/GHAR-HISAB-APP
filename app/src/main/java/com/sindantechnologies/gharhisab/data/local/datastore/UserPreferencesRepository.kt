@@ -8,9 +8,12 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.sindantechnologies.gharhisab.domain.model.AppLockMode
+import com.sindantechnologies.gharhisab.domain.model.AppLockTimeout
 import com.sindantechnologies.gharhisab.domain.model.Language
 import com.sindantechnologies.gharhisab.domain.model.StorageOption
 import com.sindantechnologies.gharhisab.domain.model.ThemeMode
+import com.sindantechnologies.gharhisab.util.security.SecurityUtils
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -34,6 +37,10 @@ class UserPreferencesRepository(private val context: Context) {
         val STARTING_BALANCE = longPreferencesKey("starting_balance") // Paisa
         val PROTECTED_RESERVE = longPreferencesKey("protected_reserve") // Paisa
         val VOICE_LANGUAGE = stringPreferencesKey("voice_language") // BCP-47 code
+        val APP_LOCK_MODE = stringPreferencesKey("app_lock_mode")
+        val APP_LOCK_PIN_HASH = stringPreferencesKey("app_lock_pin_hash")
+        val APP_LOCK_PIN_SALT = stringPreferencesKey("app_lock_pin_salt")
+        val APP_LOCK_TIMEOUT = longPreferencesKey("app_lock_timeout")
     }
 
     // ── Read Flows ──
@@ -71,6 +78,26 @@ class UserPreferencesRepository(private val context: Context) {
     /** Emits preferred voice recognition language code ("en", "ur", "pa"). */
     val voiceLanguageFlow: Flow<String> = context.dataStore.data.map { prefs ->
         prefs[Keys.VOICE_LANGUAGE] ?: "en"
+    }
+
+    /** Emits configured app security mode. */
+    val appLockModeFlow: Flow<AppLockMode> = context.dataStore.data.map { prefs ->
+        AppLockMode.fromKey(prefs[Keys.APP_LOCK_MODE] ?: AppLockMode.OFF.key)
+    }
+
+    /** Emits stored PIN hash. */
+    val appLockPinHashFlow: Flow<String> = context.dataStore.data.map { prefs ->
+        prefs[Keys.APP_LOCK_PIN_HASH] ?: ""
+    }
+
+    /** Emits stored PIN salt. */
+    val appLockPinSaltFlow: Flow<String> = context.dataStore.data.map { prefs ->
+        prefs[Keys.APP_LOCK_PIN_SALT] ?: ""
+    }
+
+    /** Emits configured auto-lock timeout duration in milliseconds. */
+    val appLockTimeoutFlow: Flow<AppLockTimeout> = context.dataStore.data.map { prefs ->
+        AppLockTimeout.fromDuration(prefs[Keys.APP_LOCK_TIMEOUT] ?: 0L)
     }
 
     // ── Write Operations ──
@@ -121,6 +148,41 @@ class UserPreferencesRepository(private val context: Context) {
     suspend fun setVoiceLanguage(languageCode: String) {
         context.dataStore.edit { prefs ->
             prefs[Keys.VOICE_LANGUAGE] = languageCode
+        }
+    }
+
+    /** Persists the chosen app lock mode. */
+    suspend fun setAppLockMode(mode: AppLockMode) {
+        context.dataStore.edit { prefs ->
+            prefs[Keys.APP_LOCK_MODE] = mode.key
+        }
+    }
+
+    /** Securely hashes and persists a new user PIN. */
+    suspend fun setAppLockPin(pin: String) {
+        val salt = SecurityUtils.generateSalt()
+        val saltHex = SecurityUtils.bytesToHex(salt)
+        val hashHex = SecurityUtils.hashPin(pin, salt)
+        context.dataStore.edit { prefs ->
+            prefs[Keys.APP_LOCK_PIN_SALT] = saltHex
+            prefs[Keys.APP_LOCK_PIN_HASH] = hashHex
+            prefs[Keys.APP_LOCK_MODE] = AppLockMode.PIN.key
+        }
+    }
+
+    /** Disables app lock and clears security credentials. */
+    suspend fun clearAppLock() {
+        context.dataStore.edit { prefs ->
+            prefs[Keys.APP_LOCK_MODE] = AppLockMode.OFF.key
+            prefs[Keys.APP_LOCK_PIN_SALT] = ""
+            prefs[Keys.APP_LOCK_PIN_HASH] = ""
+        }
+    }
+
+    /** Persists auto-lock timeout. */
+    suspend fun setAppLockTimeout(timeout: AppLockTimeout) {
+        context.dataStore.edit { prefs ->
+            prefs[Keys.APP_LOCK_TIMEOUT] = timeout.durationMillis
         }
     }
 }

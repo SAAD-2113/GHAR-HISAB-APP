@@ -49,15 +49,20 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.sindantechnologies.gharhisab.R
 import com.sindantechnologies.gharhisab.data.local.datastore.UserPreferencesRepository
+import com.sindantechnologies.gharhisab.domain.model.AppLockMode
+import com.sindantechnologies.gharhisab.domain.model.AppLockTimeout
 import com.sindantechnologies.gharhisab.domain.model.Language
 import com.sindantechnologies.gharhisab.domain.model.ThemeMode
+import com.sindantechnologies.gharhisab.util.security.BiometricAuthManager
 import com.sindantechnologies.gharhisab.ui.components.SettingsGroup
 import com.sindantechnologies.gharhisab.ui.components.SettingsItem
 import com.sindantechnologies.gharhisab.ui.theme.Dimens
@@ -81,11 +86,16 @@ fun SettingsScreen(
     val currentTheme by userPreferencesRepository.themeModeFlow.collectAsStateWithLifecycle(initialValue = ThemeMode.FOLLOW_SYSTEM)
     val startingBalance by userPreferencesRepository.startingBalanceFlow.collectAsStateWithLifecycle(initialValue = 0L)
     val protectedReserve by userPreferencesRepository.protectedReserveFlow.collectAsStateWithLifecycle(initialValue = 0L)
+    val currentLockMode by userPreferencesRepository.appLockModeFlow.collectAsStateWithLifecycle(initialValue = AppLockMode.OFF)
+    val currentLockTimeout by userPreferencesRepository.appLockTimeoutFlow.collectAsStateWithLifecycle(initialValue = AppLockTimeout.IMMEDIATE)
 
     var showLanguageDialog by remember { mutableStateOf(false) }
     var showThemeDialog by remember { mutableStateOf(false) }
     var showStartingBalanceDialog by remember { mutableStateOf(false) }
     var showProtectedReserveDialog by remember { mutableStateOf(false) }
+    var showLockModeDialog by remember { mutableStateOf(false) }
+    var showPinSetupDialog by remember { mutableStateOf(false) }
+    var showTimeoutDialog by remember { mutableStateOf(false) }
 
     // Language Dialog
     if (showLanguageDialog) {
@@ -262,6 +272,174 @@ fun SettingsScreen(
         )
     }
 
+    val context = LocalContext.current
+
+    // App Lock Mode Dialog
+    if (showLockModeDialog) {
+        var tempMode by remember { mutableStateOf(currentLockMode) }
+        AlertDialog(
+            onDismissRequest = { showLockModeDialog = false },
+            title = { Text("Application Security") },
+            text = {
+                Column {
+                    AppLockMode.entries.forEach { mode ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .selectable(
+                                    selected = tempMode == mode,
+                                    onClick = { tempMode = mode }
+                                )
+                                .padding(vertical = Dimens.SpacingSm),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(
+                                selected = tempMode == mode,
+                                onClick = { tempMode = mode }
+                            )
+                            Spacer(modifier = Modifier.width(Dimens.SpacingSm))
+                            Text(mode.title)
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(onClick = {
+                    showLockModeDialog = false
+                    when (tempMode) {
+                        AppLockMode.OFF -> {
+                            scope.launch {
+                                userPreferencesRepository.clearAppLock()
+                                snackbarHostState.showSnackbar("App lock disabled")
+                            }
+                        }
+                        AppLockMode.PIN -> {
+                            showPinSetupDialog = true
+                        }
+                        AppLockMode.BIOMETRIC -> {
+                            if (BiometricAuthManager.canAuthenticate(context)) {
+                                scope.launch {
+                                    userPreferencesRepository.setAppLockMode(AppLockMode.BIOMETRIC)
+                                    snackbarHostState.showSnackbar("Biometric / Device lock enabled")
+                                }
+                            } else {
+                                scope.launch {
+                                    snackbarHostState.showSnackbar("Biometric or device lock is not configured on this phone")
+                                }
+                            }
+                        }
+                    }
+                }) {
+                    Text("Select")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showLockModeDialog = false }) { Text("Cancel") }
+            }
+        )
+    }
+
+    // PIN Setup Dialog
+    if (showPinSetupDialog) {
+        var pin by remember { mutableStateOf("") }
+        var confirmPin by remember { mutableStateOf("") }
+        var pinError by remember { mutableStateOf<String?>(null) }
+
+        AlertDialog(
+            onDismissRequest = { showPinSetupDialog = false },
+            title = { Text("Set 4-Digit Security PIN") },
+            text = {
+                Column {
+                    OutlinedTextField(
+                        value = pin,
+                        onValueChange = { if (it.length <= 4 && it.all { c -> c.isDigit() }) pin = it },
+                        label = { Text("Enter 4-Digit PIN") },
+                        visualTransformation = PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(Dimens.SpacingSm))
+                    OutlinedTextField(
+                        value = confirmPin,
+                        onValueChange = { if (it.length <= 4 && it.all { c -> c.isDigit() }) confirmPin = it },
+                        label = { Text("Confirm PIN") },
+                        visualTransformation = PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                        isError = pinError != null,
+                        supportingText = pinError?.let { { Text(it) } },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(onClick = {
+                    if (pin.length != 4) {
+                        pinError = "PIN must be exactly 4 digits"
+                    } else if (pin != confirmPin) {
+                        pinError = "PINs do not match"
+                    } else {
+                        scope.launch {
+                            userPreferencesRepository.setAppLockPin(pin)
+                            showPinSetupDialog = false
+                            snackbarHostState.showSnackbar("Security PIN set successfully")
+                        }
+                    }
+                }) {
+                    Text("Save PIN")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showPinSetupDialog = false }) { Text("Cancel") }
+            }
+        )
+    }
+
+    // Auto-lock Timeout Dialog
+    if (showTimeoutDialog) {
+        var tempTimeout by remember { mutableStateOf(currentLockTimeout) }
+        AlertDialog(
+            onDismissRequest = { showTimeoutDialog = false },
+            title = { Text("Auto-lock Timeout") },
+            text = {
+                Column {
+                    AppLockTimeout.entries.forEach { timeout ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .selectable(
+                                    selected = tempTimeout == timeout,
+                                    onClick = { tempTimeout = timeout }
+                                )
+                                .padding(vertical = Dimens.SpacingSm),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(
+                                selected = tempTimeout == timeout,
+                                onClick = { tempTimeout = timeout }
+                            )
+                            Spacer(modifier = Modifier.width(Dimens.SpacingSm))
+                            Text(timeout.label)
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(onClick = {
+                    scope.launch {
+                        userPreferencesRepository.setAppLockTimeout(tempTimeout)
+                        showTimeoutDialog = false
+                        snackbarHostState.showSnackbar("Auto-lock timeout updated")
+                    }
+                }) {
+                    Text("Save")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showTimeoutDialog = false }) { Text("Cancel") }
+            }
+        )
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -339,6 +517,26 @@ fun SettingsScreen(
                     value = CurrencyFormatter.formatPaisa(protectedReserve),
                     onClick = { showProtectedReserveDialog = true },
                 )
+            }
+
+            Spacer(modifier = Modifier.height(Dimens.SpacingLg))
+
+            // Security & Privacy
+            SettingsGroup(title = "Security & Privacy") {
+                SettingsItem(
+                    icon = if (currentLockMode == AppLockMode.BIOMETRIC) Icons.Filled.Fingerprint else Icons.Filled.Lock,
+                    title = "Application Lock",
+                    value = currentLockMode.title,
+                    onClick = { showLockModeDialog = true },
+                )
+                if (currentLockMode != AppLockMode.OFF) {
+                    SettingsItem(
+                        icon = Icons.Filled.Shield,
+                        title = "Auto-lock Timeout",
+                        value = currentLockTimeout.label,
+                        onClick = { showTimeoutDialog = true },
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(Dimens.SpacingLg))

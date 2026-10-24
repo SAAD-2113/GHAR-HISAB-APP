@@ -9,7 +9,7 @@ object Constants {
     const val SPLASH_DURATION_MS = 2000L
 
     /** Application version displayed in settings. */
-    const val APP_VERSION = "1.1.0"
+    const val APP_VERSION = "1.2.0"
 
     /** Company name. */
     const val COMPANY_NAME = "Sindan Technologies"

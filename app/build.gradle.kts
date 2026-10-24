@@ -13,8 +13,8 @@ android {
         applicationId = "com.sindantechnologies.gharhisab"
         minSdk = 29
         targetSdk = 34
-        versionCode = 2
-        versionName = "1.1.0"
+        versionCode = 3
+        versionName = "1.2.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -73,6 +73,9 @@ dependencies {
 
     // DataStore
     implementation(libs.androidx.datastore.preferences)
+
+    // Biometric & Security
+    implementation(libs.androidx.biometric)
 
     // Splash
     implementation(libs.androidx.splashscreen)
