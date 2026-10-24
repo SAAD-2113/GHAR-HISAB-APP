@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Urdu translations - placeholder for future implementation -->
+<!-- When implementing, translate all strings from values/strings.xml -->
+<resources>
+    <string name="app_name">گھر حساب</string>
+</resources>

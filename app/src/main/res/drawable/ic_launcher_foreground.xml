@@ -1,0 +1,17 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108"
+    android:tint="#FFFFFF">
+
+    <!-- House roof -->
+    <path
+        android:fillColor="@android:color/white"
+        android:pathData="M54,22L22,48L28,48L28,78L78,78L78,48L84,48Z" />
+
+    <!-- Rupee symbol (₨) simplified -->
+    <path
+        android:fillColor="#B71C1C"
+        android:pathData="M44,52L62,52L62,56L44,56ZM44,60L62,60L62,64L44,64ZM48,56L48,74L52,74L56,64L52,64L52,56Z" />
+</vector>

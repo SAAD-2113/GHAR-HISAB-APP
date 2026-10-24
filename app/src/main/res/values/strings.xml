@@ -1,0 +1,81 @@
+<resources>
+    <string name="app_name">GharHisab</string>
+
+    <!-- Splash -->
+    <string name="splash_app_name">GharHisab</string>
+    <string name="splash_product_of">A Product of</string>
+    <string name="splash_company_name">Sindan Technologies</string>
+    <string name="splash_logo_description">GharHisab Logo</string>
+    <string name="splash_company_logo_description">Sindan Technologies Logo</string>
+
+    <!-- Language Selection -->
+    <string name="language_selection_title">Choose Your Language</string>
+    <string name="language_english">English</string>
+    <string name="language_urdu">اردو</string>
+    <string name="language_punjabi">ਪੰਜਾਬੀ</string>
+
+    <!-- Theme Selection -->
+    <string name="theme_selection_title">Choose Theme</string>
+    <string name="theme_classic">Classic</string>
+    <string name="theme_midnight">Midnight</string>
+    <string name="theme_follow_system">Follow System</string>
+
+    <!-- Storage Selection -->
+    <string name="storage_selection_title">Choose Where to Store Your Data</string>
+    <string name="storage_local_title">Local Storage</string>
+    <string name="storage_local_works_offline">Works Offline</string>
+    <string name="storage_local_faster">Faster</string>
+    <string name="storage_local_secure">Secure</string>
+    <string name="storage_local_recommended">Recommended</string>
+    <string name="storage_google_drive_title">Google Drive Backup</string>
+    <string name="storage_coming_soon_badge">Coming Soon</string>
+    <string name="storage_coming_soon_title">Coming Soon</string>
+    <string name="storage_coming_soon_message">Google Drive backup will be available in a future update.\n\nFor now, your financial data will be securely stored on your device using encrypted local storage.</string>
+    <string name="storage_continue_local">Continue with Local Storage</string>
+    <string name="storage_cancel">Cancel</string>
+
+    <!-- Home -->
+    <string name="home_title">GharHisab</string>
+    <string name="home_welcome">Welcome!</string>
+    <string name="home_subtitle">Manage your household finances</string>
+    <string name="home_income">Income</string>
+    <string name="home_expense">Expense</string>
+    <string name="home_balance">Balance</string>
+    <string name="home_recent_transactions">Recent Transactions</string>
+    <string name="home_no_transactions">No transactions yet</string>
+    <string name="home_no_transactions_hint">Start tracking your expenses to see them here.</string>
+    <string name="home_add_transaction">Add Transaction</string>
+    <string name="home_coming_soon">Coming soon in a future update</string>
+
+    <!-- Settings -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_general">General</string>
+    <string name="settings_language">Language</string>
+    <string name="settings_theme">Theme</string>
+    <string name="settings_currency">Currency</string>
+    <string name="settings_currency_value">PKR</string>
+    <string name="settings_security">Security</string>
+    <string name="settings_app_lock">App Lock</string>
+    <string name="settings_biometric">Biometric</string>
+    <string name="settings_off">Off</string>
+    <string name="settings_data">Data</string>
+    <string name="settings_storage">Storage</string>
+    <string name="settings_local">Local</string>
+    <string name="settings_backup">Backup</string>
+    <string name="settings_export_data">Export Data</string>
+    <string name="settings_about">About</string>
+    <string name="settings_version">Version</string>
+    <string name="settings_privacy_policy">Privacy Policy</string>
+    <string name="settings_terms_of_service">Terms of Service</string>
+    <string name="settings_rate_app">Rate App</string>
+    <string name="settings_coming_soon">Coming soon in a future update</string>
+
+    <!-- Common -->
+    <string name="continue_button">Continue</string>
+    <string name="rupee_symbol">₨</string>
+    <string name="zero_amount">₨ 0</string>
+    
+    <!-- Transactions -->
+    <string name="home_view_all">View All</string>
+    <string name="transaction_no_description">No description</string>
+</resources>
