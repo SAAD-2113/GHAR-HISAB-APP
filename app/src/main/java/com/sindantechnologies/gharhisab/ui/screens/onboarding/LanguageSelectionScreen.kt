@@ -8,11 +8,13 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -39,19 +41,26 @@ fun LanguageSelectionScreen(
 
     Scaffold(
         bottomBar = {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = Dimens.SpacingLg, vertical = Dimens.SpacingMd),
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                color = MaterialTheme.colorScheme.background,
+                tonalElevation = Dimens.ElevationMd,
             ) {
-                GharHisabButton(
-                    text = stringResource(R.string.continue_button),
-                    onClick = {
-                        viewModel.saveLanguage()
-                        onContinue()
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                )
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .navigationBarsPadding()
+                        .padding(horizontal = Dimens.SpacingLg, vertical = Dimens.SpacingMd),
+                ) {
+                    GharHisabButton(
+                        text = stringResource(R.string.continue_button),
+                        onClick = {
+                            viewModel.saveLanguage()
+                            onContinue()
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
             }
         },
         containerColor = MaterialTheme.colorScheme.background,

@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -42,6 +43,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -157,20 +159,33 @@ fun EditTransactionScreen(
         },
         bottomBar = {
             if (!uiState.isLoading) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .imePadding()
-                        .padding(Dimens.SpacingLg)
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    color = MaterialTheme.colorScheme.background,
+                    tonalElevation = Dimens.ElevationLg,
+                    shadowElevation = Dimens.ElevationXl,
                 ) {
-                    Button(
-                        onClick = { viewModel.saveTransaction() },
+                    Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(Dimens.ButtonHeight),
-                        enabled = !uiState.isSaving
+                            .navigationBarsPadding()
+                            .imePadding()
+                            .padding(horizontal = Dimens.SpacingLg, vertical = Dimens.SpacingMd)
                     ) {
-                        Text(if (uiState.isSaving) "Saving..." else "Update Transaction")
+                        Button(
+                            onClick = { viewModel.saveTransaction() },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(Dimens.ButtonHeight),
+                            enabled = !uiState.isSaving,
+                            shape = RoundedCornerShape(Dimens.RadiusMd)
+                        ) {
+                            Text(
+                                text = if (uiState.isSaving) "Saving..." else "Update Transaction",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
                     }
                 }
             }
