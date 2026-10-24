@@ -31,6 +31,9 @@ interface PlannedExpenseDao {
     @Query("SELECT * FROM planned_expenses WHERE actualTransactionId = :transactionId LIMIT 1")
     suspend fun getPlannedExpenseByTransactionId(transactionId: Long): PlannedExpenseEntity?
 
+    @Query("SELECT * FROM planned_expenses WHERE status = 'PLANNED' AND plannedDate >= :currentTimeMillis ORDER BY plannedDate ASC")
+    suspend fun getActivePlannedExpensesList(currentTimeMillis: Long = System.currentTimeMillis()): List<PlannedExpenseEntity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertPlannedExpense(plannedExpense: PlannedExpenseEntity): Long
 

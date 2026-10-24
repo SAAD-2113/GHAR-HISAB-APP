@@ -173,7 +173,8 @@ fun GharHisabNavHost(
                     appContainer.plannedExpenseRepository,
                     appContainer.transactionRepository,
                     appContainer.categoryRepository,
-                    appContainer.userPreferencesRepository
+                    appContainer.userPreferencesRepository,
+                    appContainer.context
                 )
             )
             PlannedExpensesScreen(

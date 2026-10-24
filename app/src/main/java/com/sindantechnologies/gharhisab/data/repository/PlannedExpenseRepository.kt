@@ -34,6 +34,10 @@ class PlannedExpenseRepository(
         return plannedExpenseDao.getPlannedExpenseById(id)
     }
 
+    suspend fun getActivePlannedExpensesList(currentTimeMillis: Long = System.currentTimeMillis()): List<PlannedExpenseEntity> {
+        return plannedExpenseDao.getActivePlannedExpensesList(currentTimeMillis)
+    }
+
     suspend fun insertPlannedExpense(item: PlannedExpenseEntity): Long {
         return plannedExpenseDao.insertPlannedExpense(item)
     }

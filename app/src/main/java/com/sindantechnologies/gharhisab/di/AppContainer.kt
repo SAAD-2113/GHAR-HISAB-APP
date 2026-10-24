@@ -12,6 +12,7 @@ import com.sindantechnologies.gharhisab.data.repository.TransactionRepository
  * Dependency Injection container.
  */
 interface AppContainer {
+    val context: Context
     val userPreferencesRepository: UserPreferencesRepository
     val transactionRepository: TransactionRepository
     val categoryRepository: CategoryRepository
@@ -22,7 +23,7 @@ interface AppContainer {
 /**
  * Implementation for the Dependency Injection container at the application level.
  */
-class DefaultAppContainer(private val context: Context) : AppContainer {
+class DefaultAppContainer(override val context: Context) : AppContainer {
 
     override val userPreferencesRepository: UserPreferencesRepository by lazy {
         UserPreferencesRepository(context)

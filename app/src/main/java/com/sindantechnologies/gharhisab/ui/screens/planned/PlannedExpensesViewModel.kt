@@ -1,5 +1,6 @@
 package com.sindantechnologies.gharhisab.ui.screens.planned
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -12,6 +13,7 @@ import com.sindantechnologies.gharhisab.data.repository.TransactionRepository
 import com.sindantechnologies.gharhisab.domain.model.PaymentMethod
 import com.sindantechnologies.gharhisab.domain.model.PlannedExpenseStatus
 import com.sindantechnologies.gharhisab.domain.model.TransactionType
+import com.sindantechnologies.gharhisab.util.reminder.ReminderScheduler
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -36,6 +38,7 @@ class PlannedExpensesViewModel(
     private val transactionRepository: TransactionRepository,
     private val categoryRepository: CategoryRepository,
     private val userPreferencesRepository: UserPreferencesRepository,
+    private val context: Context,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(PlannedExpensesUiState())
@@ -120,7 +123,8 @@ class PlannedExpensesViewModel(
                 recurrence = recurrence,
                 status = PlannedExpenseStatus.PLANNED
             )
-            plannedExpenseRepository.insertPlannedExpense(item)
+            val newId = plannedExpenseRepository.insertPlannedExpense(item)
+            ReminderScheduler.scheduleReminders(context, item.copy(id = newId))
         }
     }
 
@@ -130,30 +134,33 @@ class PlannedExpensesViewModel(
                 plannedExpenseId = plannedExpenseId,
                 paymentMethod = paymentMethod
             )
+            ReminderScheduler.cancelReminders(context, plannedExpenseId)
         }
     }
 
     fun cancelPlannedExpense(id: Long) {
         viewModelScope.launch {
             plannedExpenseRepository.cancelPlannedExpense(id)
+            ReminderScheduler.cancelReminders(context, id)
         }
     }
 
     fun reschedulePlannedExpense(id: Long, newDate: Long) {
         viewModelScope.launch {
             val existing = plannedExpenseRepository.getPlannedExpenseById(id) ?: return@launch
-            plannedExpenseRepository.updatePlannedExpense(
-                existing.copy(
-                    plannedDate = newDate,
-                    updatedAt = System.currentTimeMillis()
-                )
+            val updated = existing.copy(
+                plannedDate = newDate,
+                updatedAt = System.currentTimeMillis()
             )
+            plannedExpenseRepository.updatePlannedExpense(updated)
+            ReminderScheduler.scheduleReminders(context, updated)
         }
     }
 
     fun deletePlannedExpense(item: PlannedExpenseEntity) {
         viewModelScope.launch {
             plannedExpenseRepository.deletePlannedExpense(item)
+            ReminderScheduler.cancelReminders(context, item.id)
         }
     }
 
@@ -162,6 +169,7 @@ class PlannedExpensesViewModel(
         private val transactionRepository: TransactionRepository,
         private val categoryRepository: CategoryRepository,
         private val userPreferencesRepository: UserPreferencesRepository,
+        private val context: Context,
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
@@ -169,7 +177,8 @@ class PlannedExpensesViewModel(
                 plannedExpenseRepository,
                 transactionRepository,
                 categoryRepository,
-                userPreferencesRepository
+                userPreferencesRepository,
+                context
             ) as T
         }
     }
