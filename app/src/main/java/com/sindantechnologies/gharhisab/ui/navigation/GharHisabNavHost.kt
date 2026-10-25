@@ -149,6 +149,7 @@ fun GharHisabNavHost(
         composable(route = Screen.Settings.route) {
             SettingsScreen(
                 userPreferencesRepository = appContainer.userPreferencesRepository,
+                backupManager = appContainer.backupManager,
                 onNavigateBack = { navController.popBackStack() },
             )
         }

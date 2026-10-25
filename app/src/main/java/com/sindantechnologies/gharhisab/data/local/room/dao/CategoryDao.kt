@@ -22,6 +22,9 @@ interface CategoryDao {
     @Query("SELECT * FROM categories WHERE isActive = 1")
     suspend fun getActiveCategoriesList(): List<CategoryEntity>
 
+    @Query("SELECT * FROM categories")
+    suspend fun getAllCategoriesList(): List<CategoryEntity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertCategories(categories: List<CategoryEntity>)
     

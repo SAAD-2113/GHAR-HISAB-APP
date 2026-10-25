@@ -1,6 +1,7 @@
 package com.sindantechnologies.gharhisab.di
 
 import android.content.Context
+import com.sindantechnologies.gharhisab.data.backup.BackupManager
 import com.sindantechnologies.gharhisab.data.local.datastore.UserPreferencesRepository
 import com.sindantechnologies.gharhisab.data.local.room.GharHisabDatabase
 import com.sindantechnologies.gharhisab.data.repository.BudgetRepository
@@ -18,6 +19,7 @@ interface AppContainer {
     val categoryRepository: CategoryRepository
     val budgetRepository: BudgetRepository
     val plannedExpenseRepository: PlannedExpenseRepository
+    val backupManager: BackupManager
 }
 
 /**
@@ -47,5 +49,9 @@ class DefaultAppContainer(override val context: Context) : AppContainer {
 
     override val plannedExpenseRepository: PlannedExpenseRepository by lazy {
         PlannedExpenseRepository(database.plannedExpenseDao(), database.transactionDao())
+    }
+
+    override val backupManager: BackupManager by lazy {
+        BackupManager(database, userPreferencesRepository, context)
     }
 }

@@ -42,4 +42,13 @@ interface PlannedExpenseDao {
 
     @Delete
     suspend fun deletePlannedExpense(plannedExpense: PlannedExpenseEntity)
+
+    @Query("SELECT * FROM planned_expenses")
+    suspend fun getAllPlannedExpensesList(): List<PlannedExpenseEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertPlannedExpenses(expenses: List<PlannedExpenseEntity>)
+
+    @Query("DELETE FROM planned_expenses")
+    suspend fun deleteAllPlannedExpenses()
 }

@@ -16,6 +16,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.Cloud
+import androidx.compose.material.icons.filled.CloudDownload
+import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.CurrencyExchange
 import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.Info
@@ -56,7 +58,10 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import com.sindantechnologies.gharhisab.R
+import com.sindantechnologies.gharhisab.data.backup.BackupManager
 import com.sindantechnologies.gharhisab.data.local.datastore.UserPreferencesRepository
 import com.sindantechnologies.gharhisab.domain.model.AppLockMode
 import com.sindantechnologies.gharhisab.domain.model.AppLockTimeout
@@ -69,6 +74,8 @@ import com.sindantechnologies.gharhisab.ui.theme.Dimens
 import com.sindantechnologies.gharhisab.util.Constants
 import com.sindantechnologies.gharhisab.util.CurrencyFormatter
 import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Date
 
 /**
  * Functional Settings screen with real persistent user configuration.
@@ -77,6 +84,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun SettingsScreen(
     userPreferencesRepository: UserPreferencesRepository,
+    backupManager: BackupManager,
     onNavigateBack: () -> Unit,
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
@@ -440,6 +448,194 @@ fun SettingsScreen(
         )
     }
 
+    var showExportPasswordDialog by remember { mutableStateOf(false) }
+    var showImportPasswordDialog by remember { mutableStateOf(false) }
+    var selectedImportUri by remember { mutableStateOf<android.net.Uri?>(null) }
+    var showGoogleDriveInfoDialog by remember { mutableStateOf(false) }
+    var pendingExportPassword by remember { mutableStateOf("") }
+
+    val exportLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/octet-stream")
+    ) { uri ->
+        if (uri != null && pendingExportPassword.isNotBlank()) {
+            scope.launch {
+                try {
+                    val out = context.contentResolver.openOutputStream(uri)
+                    if (out != null) {
+                        backupManager.exportToStream(out, pendingExportPassword)
+                        snackbarHostState.showSnackbar("Encrypted backup exported successfully!")
+                    }
+                } catch (e: Exception) {
+                    snackbarHostState.showSnackbar("Export failed: ${e.message}")
+                } finally {
+                    pendingExportPassword = ""
+                }
+            }
+        }
+    }
+
+    val importLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            selectedImportUri = uri
+            showImportPasswordDialog = true
+        }
+    }
+
+    // Export Password Dialog
+    if (showExportPasswordDialog) {
+        var exportPassword by remember { mutableStateOf("") }
+        var exportPasswordConfirm by remember { mutableStateOf("") }
+        var exportError by remember { mutableStateOf<String?>(null) }
+
+        AlertDialog(
+            onDismissRequest = { showExportPasswordDialog = false },
+            title = { Text("Encrypt & Export Backup") },
+            text = {
+                Column {
+                    Text(
+                        text = "Choose a strong password to encrypt your financial backup using AES-256-GCM. You will need this password to restore your data.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(Dimens.SpacingSm))
+                    OutlinedTextField(
+                        value = exportPassword,
+                        onValueChange = { exportPassword = it; exportError = null },
+                        label = { Text("Backup Password") },
+                        visualTransformation = PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(Dimens.SpacingSm))
+                    OutlinedTextField(
+                        value = exportPasswordConfirm,
+                        onValueChange = { exportPasswordConfirm = it; exportError = null },
+                        label = { Text("Confirm Password") },
+                        visualTransformation = PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                        isError = exportError != null,
+                        supportingText = exportError?.let { { Text(it) } },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(onClick = {
+                    if (exportPassword.length < 4) {
+                        exportError = "Password must be at least 4 characters"
+                    } else if (exportPassword != exportPasswordConfirm) {
+                        exportError = "Passwords do not match"
+                    } else {
+                        pendingExportPassword = exportPassword
+                        showExportPasswordDialog = false
+                        val fileName = "GharHisab_Backup_${SimpleDateFormat("yyyyMMdd_HHmm").format(Date())}.gharhisab"
+                        exportLauncher.launch(fileName)
+                    }
+                }) {
+                    Text("Export")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showExportPasswordDialog = false }) { Text("Cancel") }
+            }
+        )
+    }
+
+    // Import Password Dialog
+    if (showImportPasswordDialog) {
+        var importPassword by remember { mutableStateOf("") }
+        var importError by remember { mutableStateOf<String?>(null) }
+        var isRestoring by remember { mutableStateOf(false) }
+
+        AlertDialog(
+            onDismissRequest = { if (!isRestoring) showImportPasswordDialog = false },
+            title = { Text("Decrypt & Restore Backup") },
+            text = {
+                Column {
+                    Text(
+                        text = "Enter the password used when creating this backup file.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(Dimens.SpacingSm))
+                    OutlinedTextField(
+                        value = importPassword,
+                        onValueChange = { importPassword = it; importError = null },
+                        label = { Text("Decryption Password") },
+                        visualTransformation = PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                        isError = importError != null,
+                        supportingText = importError?.let { { Text(it) } },
+                        enabled = !isRestoring,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val uri = selectedImportUri ?: return@Button
+                        isRestoring = true
+                        scope.launch {
+                            try {
+                                val inputStream = context.contentResolver.openInputStream(uri)
+                                if (inputStream != null) {
+                                    val result = backupManager.importFromStream(inputStream, importPassword)
+                                    if (result.isSuccess) {
+                                        showImportPasswordDialog = false
+                                        snackbarHostState.showSnackbar("Successfully restored ${result.getOrNull()} transactions!")
+                                    } else {
+                                        importError = "Failed to restore: Incorrect password or invalid file"
+                                    }
+                                } else {
+                                    importError = "Cannot open selected file"
+                                }
+                            } catch (e: Exception) {
+                                importError = "Restore error: ${e.localizedMessage}"
+                            } finally {
+                                isRestoring = false
+                            }
+                        }
+                    },
+                    enabled = !isRestoring
+                ) {
+                    Text(if (isRestoring) "Restoring..." else "Restore Data")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showImportPasswordDialog = false },
+                    enabled = !isRestoring
+                ) { Text("Cancel") }
+            }
+        )
+    }
+
+    // Google Drive Sync Information Dialog
+    if (showGoogleDriveInfoDialog) {
+        AlertDialog(
+            onDismissRequest = { showGoogleDriveInfoDialog = false },
+            title = { Text("Google Drive Cloud Sync") },
+            text = {
+                Column {
+                    Text(
+                        text = "Google Drive Cloud Synchronization backs up your financial database directly to your personal Google Drive hidden App Data Folder (AES-256-GCM encrypted).\n\n" +
+                               "Because GharHisab is 100% private and offline-first, your financial records never pass through any third-party company server. You can also export local encrypted backup files anytime.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            },
+            confirmButton = {
+                Button(onClick = { showGoogleDriveInfoDialog = false }) {
+                    Text("Understood")
+                }
+            }
+        )
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -555,13 +751,21 @@ fun SettingsScreen(
                 )
                 SettingsItem(
                     icon = Icons.Filled.Cloud,
-                    title = "Google Drive Backup",
-                    value = "Coming Soon",
-                    onClick = {
-                        scope.launch {
-                            snackbarHostState.showSnackbar("Google Drive backup is in development and coming soon.")
-                        }
-                    },
+                    title = "Google Drive Cloud Sync",
+                    value = "Encrypted AppDataFolder",
+                    onClick = { showGoogleDriveInfoDialog = true },
+                )
+                SettingsItem(
+                    icon = Icons.Filled.CloudUpload,
+                    title = "Export Encrypted Backup",
+                    value = "AES-256-GCM (.gharhisab)",
+                    onClick = { showExportPasswordDialog = true },
+                )
+                SettingsItem(
+                    icon = Icons.Filled.CloudDownload,
+                    title = "Restore from Encrypted Backup",
+                    value = "Import file",
+                    onClick = { importLauncher.launch(arrayOf("*/*")) },
                 )
             }
 

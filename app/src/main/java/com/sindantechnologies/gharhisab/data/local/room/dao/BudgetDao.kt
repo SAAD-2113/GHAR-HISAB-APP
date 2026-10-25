@@ -32,4 +32,13 @@ interface BudgetDao {
 
     @Delete
     suspend fun deleteBudget(budget: BudgetEntity)
+
+    @Query("SELECT * FROM budgets")
+    suspend fun getAllBudgetsList(): List<BudgetEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertBudgets(budgets: List<BudgetEntity>)
+
+    @Query("DELETE FROM budgets")
+    suspend fun deleteAllBudgets()
 }
