@@ -48,7 +48,9 @@ class DefaultAppContainer(override val context: Context) : AppContainer {
     }
 
     override val plannedExpenseRepository: PlannedExpenseRepository by lazy {
-        PlannedExpenseRepository(database.plannedExpenseDao(), database.transactionDao())
+        PlannedExpenseRepository(database) {
+            com.sindantechnologies.gharhisab.util.reminder.ReminderScheduler.reconcile(context, database.plannedExpenseDao().getAllPlannedExpensesList())
+        }
     }
 
     override val backupManager: BackupManager by lazy {

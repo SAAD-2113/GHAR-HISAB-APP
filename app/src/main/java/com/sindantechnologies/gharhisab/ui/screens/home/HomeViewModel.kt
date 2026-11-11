@@ -17,6 +17,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.launch
 import java.text.DateFormatSymbols
 import java.util.Calendar
@@ -41,6 +43,7 @@ data class HomeUiState(
     val isBudgetWarning: Boolean = false,
     val upcomingPlannedExpenses: List<PlannedExpenseEntity> = emptyList(),
     val dailyRecommendation: DailySpendingRecommendation = DailySpendingRecommendation.calculate(0L, 0L, 0L),
+    val forecast: com.sindantechnologies.gharhisab.domain.model.SpendingForecast? = null,
     val isLoading: Boolean = true,
 )
 
@@ -77,110 +80,43 @@ class HomeViewModel(
         loadDashboardData()
     }
 
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     private fun loadDashboardData() {
-        val calendar = Calendar.getInstance()
-        val currentMonth = calendar.get(Calendar.MONTH) + 1
-        val currentYear = calendar.get(Calendar.YEAR)
-        val monthStr = "${DateFormatSymbols(Locale.getDefault()).months[currentMonth - 1]} $currentYear"
-
-        calendar.set(Calendar.DAY_OF_MONTH, 1)
-        calendar.set(Calendar.HOUR_OF_DAY, 0)
-        calendar.set(Calendar.MINUTE, 0)
-        calendar.set(Calendar.SECOND, 0)
-        calendar.set(Calendar.MILLISECOND, 0)
-        val startOfMonth = calendar.timeInMillis
-
-        calendar.set(Calendar.DAY_OF_MONTH, calendar.getActualMaximum(Calendar.DAY_OF_MONTH))
-        calendar.set(Calendar.HOUR_OF_DAY, 23)
-        calendar.set(Calendar.MINUTE, 59)
-        calendar.set(Calendar.SECOND, 59)
-        calendar.set(Calendar.MILLISECOND, 999)
-        val endOfMonth = calendar.timeInMillis
-
-        val now = System.currentTimeMillis()
-
-        val monthDataFlow = combine(
-            transactionRepository.getIncomeTotalBetween(startOfMonth, endOfMonth),
-            transactionRepository.getExpenseTotalBetween(startOfMonth, endOfMonth),
-            transactionRepository.getTransactionsBetween(startOfMonth, endOfMonth),
-            budgetRepository.getOverallBudget(currentMonth, currentYear)
-        ) { income, expense, transactions, budget ->
-            MonthFlowData(
-                incomePaisa = income ?: 0L,
-                expensePaisa = expense ?: 0L,
-                transactions = transactions,
-                overallBudget = budget
-            )
+        val ticker = kotlinx.coroutines.flow.flow {
+            while (true) { emit(java.time.LocalDate.now()); kotlinx.coroutines.delay(60_000) }
         }
-
-        val allTimeDataFlow = combine(
-            transactionRepository.getAllTimeIncomeTotal(),
-            transactionRepository.getAllTimeExpenseTotal(),
-            userPreferencesRepository.startingBalanceFlow,
-            userPreferencesRepository.protectedReserveFlow,
-            plannedExpenseRepository.getUpcomingPlannedExpenses()
-        ) { allIncome, allExpense, startingBalance, protectedReserve, upcomingPlans ->
-            AllTimeFlowData(
-                allTimeIncome = allIncome ?: 0L,
-                allTimeExpense = allExpense ?: 0L,
-                startingBalance = startingBalance,
-                protectedReserve = protectedReserve,
-                upcomingPlans = upcomingPlans
-            )
-        }
-
+        val preferences = combine(userPreferencesRepository.startingBalanceFlow, userPreferencesRepository.protectedReserveFlow) { balance, reserve -> balance to reserve }
+        val records = combine(transactionRepository.getAllTransactions(), plannedExpenseRepository.getAllPlannedExpenses(), categoryRepository.getActiveCategories()) { tx, plans, cats -> Triple(tx, plans, cats) }
+        val datedBudget = ticker.flatMapLatest { date -> budgetRepository.getOverallBudget(date.monthValue, date.year).map { date to it } }
         viewModelScope.launch {
-            combine(
-                monthDataFlow,
-                allTimeDataFlow,
-                categoryRepository.getActiveCategories()
-            ) { monthData, allTimeData, categories ->
-                val incomePaisa = monthData.incomePaisa
-                val expensePaisa = monthData.expensePaisa
-                val netCashFlow = incomePaisa - expensePaisa
-
-                val allTimeNet = allTimeData.allTimeIncome - allTimeData.allTimeExpense
-                val currentAvailableFunds = allTimeData.startingBalance + allTimeNet
-
-                val categoryMap = categories.associateBy { it.id }
-
-                val upcomingInMonth = allTimeData.upcomingPlans.filter { it.plannedDate in now..endOfMonth }
-                val plannedCommitmentsPaisa = upcomingInMonth.sumOf { it.expectedAmount }
-
-                val recommendation = DailySpendingRecommendation.calculate(
-                    currentAvailableFundsPaisa = currentAvailableFunds,
-                    upcomingPlannedCommitmentsPaisa = plannedCommitmentsPaisa,
-                    protectedReservePaisa = allTimeData.protectedReserve
-                )
-
-                val budgetAmount = monthData.overallBudget?.amount ?: 0L
-                val remainingBudget = budgetAmount - expensePaisa
-                val budgetProgress = if (budgetAmount > 0L) {
-                    (expensePaisa.toFloat() / budgetAmount.toFloat()).coerceIn(0f, 2f)
-                } else 0f
-                val warningThreshold = (monthData.overallBudget?.warningThresholdPercent ?: 80) / 100f
-
-                HomeUiState(
-                    monthName = monthStr,
-                    totalIncome = incomePaisa,
-                    totalExpense = expensePaisa,
-                    netMonthlyCashFlow = netCashFlow,
-                    availableFunds = currentAvailableFunds,
-                    recentTransactions = monthData.transactions.take(5),
-                    categories = categoryMap,
-                    allCategoriesList = categories,
-                    overallBudget = monthData.overallBudget,
-                    remainingBudget = remainingBudget,
-                    budgetProgressPercent = budgetProgress,
-                    isBudgetExceeded = budgetAmount > 0L && expensePaisa > budgetAmount,
-                    isBudgetWarning = budgetAmount > 0L && budgetProgress >= warningThreshold && expensePaisa <= budgetAmount,
-                    upcomingPlannedExpenses = allTimeData.upcomingPlans.take(3),
-                    dailyRecommendation = recommendation,
-                    isLoading = false,
-                )
-            }.collect { state ->
-                _uiState.value = state
-            }
+            combine(records, preferences, datedBudget) { records, preferences, today -> Triple(records, preferences, today) }
+                .collect { (records, preferences, datedBudget) ->
+                    val (today, budget) = datedBudget
+                    val (transactions, plans, categories) = records
+                    val (starting, reserve) = preferences
+                    val zone = java.time.ZoneId.systemDefault()
+                    val current = transactions.filter { java.time.Instant.ofEpochMilli(it.timestamp).atZone(zone).toLocalDate() <= today }
+                    val monthly = current.filter { java.time.YearMonth.from(java.time.Instant.ofEpochMilli(it.timestamp).atZone(zone)) == java.time.YearMonth.from(today) }
+                    fun total(rows: List<TransactionEntity>, type: com.sindantechnologies.gharhisab.domain.model.TransactionType) = rows.filter { it.type == type }.fold(0L) { acc, tx -> Math.addExact(acc, tx.amount) }
+                    val income = total(monthly, com.sindantechnologies.gharhisab.domain.model.TransactionType.INCOME)
+                    val expense = total(monthly, com.sindantechnologies.gharhisab.domain.model.TransactionType.EXPENSE)
+                    val allIncome = total(current, com.sindantechnologies.gharhisab.domain.model.TransactionType.INCOME)
+                    val allExpense = total(current, com.sindantechnologies.gharhisab.domain.model.TransactionType.EXPENSE)
+                    val balance = Math.subtractExact(Math.addExact(starting, allIncome), allExpense)
+                    val forecast = com.sindantechnologies.gharhisab.domain.model.SpendingForecaster.calculate(current, plans, balance, reserve,
+                        starting > 0 || current.any { it.type == com.sindantechnologies.gharhisab.domain.model.TransactionType.INCOME }, today, zone, budget?.let { it.amount - expense })
+                    val recommendation = DailySpendingRecommendation.calculate(balance, forecast.commitments, reserve).copy(dailyLimitPaisa = forecast.dailyLimit)
+                    val progress = if (budget != null && budget.amount > 0) expense.toFloat() / budget.amount else 0f
+                    _uiState.value = HomeUiState(
+                        monthName = today.month.getDisplayName(java.time.format.TextStyle.FULL, Locale.getDefault()) + " " + today.year,
+                        totalIncome = income, totalExpense = expense, netMonthlyCashFlow = income - expense,
+                        availableFunds = balance, recentTransactions = monthly.take(5), categories = categories.associateBy { it.id }, allCategoriesList = categories,
+                        overallBudget = budget, remainingBudget = (budget?.amount ?: 0) - expense, budgetProgressPercent = progress,
+                        isBudgetExceeded = budget != null && expense > budget.amount,
+                        isBudgetWarning = budget != null && progress >= budget.warningThresholdPercent / 100f,
+                        upcomingPlannedExpenses = plans.filter { it.status == com.sindantechnologies.gharhisab.domain.model.PlannedExpenseStatus.PLANNED }.take(3),
+                        dailyRecommendation = recommendation, forecast = forecast, isLoading = false)
+                }
         }
     }
 

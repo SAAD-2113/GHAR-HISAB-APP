@@ -103,7 +103,54 @@ fun SettingsScreen(
     var showProtectedReserveDialog by remember { mutableStateOf(false) }
     var showLockModeDialog by remember { mutableStateOf(false) }
     var showPinSetupDialog by remember { mutableStateOf(false) }
+    var showRollback by remember { mutableStateOf(false) }
+    var rollbackBusy by remember { mutableStateOf(false) }
     var showTimeoutDialog by remember { mutableStateOf(false) }
+
+    var pendingSecurityAction by remember { mutableStateOf<(() -> Unit)?>(null) }
+    var recoveryKey by remember { mutableStateOf<String?>(null) }
+    val securityContext = LocalContext.current
+    fun authenticate(action: () -> Unit) {
+        when (currentLockMode) {
+            AppLockMode.OFF -> action()
+            AppLockMode.PIN -> pendingSecurityAction = action
+            AppLockMode.BIOMETRIC -> com.sindantechnologies.gharhisab.util.security.findActivity(securityContext)?.let {
+                BiometricAuthManager.promptAuthentication(it, onSuccess = action, onError = { scope.launch { snackbarHostState.showSnackbar(securityContext.getString(R.string.lock_failed)) } })
+            }
+        }
+    }
+    pendingSecurityAction?.let { action ->
+        var pin by remember { mutableStateOf("") }
+        var busy by remember { mutableStateOf(false) }
+        var failed by remember { mutableStateOf(false) }
+        AlertDialog(onDismissRequest = { pendingSecurityAction = null }, title = { Text(stringResource(R.string.lock_unlock)) },
+            text = { Column {
+                OutlinedTextField(pin, { pin = it }, visualTransformation = PasswordVisualTransformation(), label = { Text(stringResource(R.string.lock_pin)) })
+                if (failed) Text(stringResource(R.string.lock_failed))
+            } }, confirmButton = { Button(enabled = !busy, onClick = {
+                busy = true
+                scope.launch {
+                    try {
+                        if (userPreferencesRepository.verifyAppPin(pin)) { pendingSecurityAction = null; action() }
+                        else { failed = true; pin = "" }
+                    } finally { busy = false }
+                }
+            }) { Text(stringResource(R.string.action_ok)) } })
+    }
+    recoveryKey?.let { key -> AlertDialog(onDismissRequest = {}, title = { Text(stringResource(R.string.recovery_key)) },
+        text = { Column { Text(stringResource(R.string.recovery_save)); androidx.compose.foundation.text.selection.SelectionContainer { Text(key) } } },
+        confirmButton = { TextButton(onClick = { recoveryKey = null }) { Text(stringResource(R.string.recovery_saved)) } }) }
+
+    if (showRollback) AlertDialog(onDismissRequest = { if (!rollbackBusy) showRollback = false }, title = { Text(stringResource(R.string.backup_rollback)) },
+        text = { Text(stringResource(R.string.backup_replace_warning)) }, confirmButton = { TextButton(enabled = !rollbackBusy, onClick = {
+            rollbackBusy = true
+            scope.launch {
+                try { backupManager.rollbackSafetyBackup(); snackbarHostState.showSnackbar(securityContext.getString(R.string.backup_restored)) }
+                catch (_: Exception) { snackbarHostState.showSnackbar(securityContext.getString(R.string.operation_failed)) }
+                showRollback = false
+                rollbackBusy = false
+            }
+        }) { Text(stringResource(R.string.action_ok)) } }, dismissButton = { TextButton(enabled = !rollbackBusy, onClick = { showRollback = false }) { Text(stringResource(R.string.action_cancel)) } })
 
     // Language Dialog
     if (showLanguageDialog) {
@@ -326,9 +373,10 @@ fun SettingsScreen(
                         }
                         AppLockMode.BIOMETRIC -> {
                             if (BiometricAuthManager.canAuthenticate(context)) {
-                                scope.launch {
-                                    userPreferencesRepository.setAppLockMode(AppLockMode.BIOMETRIC)
-                                    snackbarHostState.showSnackbar("Biometric / Device lock enabled")
+                                com.sindantechnologies.gharhisab.util.security.findActivity(context)?.let { activity ->
+                                    BiometricAuthManager.promptAuthentication(activity, onSuccess = {
+                                        scope.launch { userPreferencesRepository.setAppLockMode(AppLockMode.BIOMETRIC) }
+                                    }, onError = { scope.launch { snackbarHostState.showSnackbar(context.getString(R.string.lock_failed)) } })
                                 }
                             } else {
                                 scope.launch {
@@ -387,7 +435,7 @@ fun SettingsScreen(
                         pinError = "PINs do not match"
                     } else {
                         scope.launch {
-                            userPreferencesRepository.setAppLockPin(pin)
+                            recoveryKey = userPreferencesRepository.setAppLockPin(pin)
                             showPinSetupDialog = false
                             snackbarHostState.showSnackbar("Security PIN set successfully")
                         }
@@ -448,38 +496,30 @@ fun SettingsScreen(
         )
     }
 
+    var restorePreview by remember { mutableStateOf<com.sindantechnologies.gharhisab.data.backup.BackupManager.Preview?>(null) }
     var showExportPasswordDialog by remember { mutableStateOf(false) }
     var showImportPasswordDialog by remember { mutableStateOf(false) }
     var selectedImportUri by remember { mutableStateOf<android.net.Uri?>(null) }
     var showGoogleDriveInfoDialog by remember { mutableStateOf(false) }
-    var pendingExportPassword by remember { mutableStateOf("") }
 
-    val exportLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.CreateDocument("application/octet-stream")
-    ) { uri ->
-        if (uri != null && pendingExportPassword.isNotBlank()) {
-            scope.launch {
-                try {
-                    val out = context.contentResolver.openOutputStream(uri)
-                    if (out != null) {
-                        backupManager.exportToStream(out, pendingExportPassword)
-                        snackbarHostState.showSnackbar("Encrypted backup exported successfully!")
-                    }
-                } catch (e: Exception) {
-                    snackbarHostState.showSnackbar("Export failed: ${e.message}")
-                } finally {
-                    pendingExportPassword = ""
-                }
-            }
-        }
+    val hostActivity = com.sindantechnologies.gharhisab.util.security.findActivity(context) as? com.sindantechnologies.gharhisab.MainActivity
+    androidx.compose.runtime.LaunchedEffect(hostActivity?.external?.googleResult, hostActivity?.external?.googleCancelled) {
+        if (hostActivity?.external?.googleResult != null || hostActivity?.external?.googleCancelled == true) showGoogleDriveInfoDialog = true
     }
-
-    val importLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocument()
-    ) { uri ->
+    androidx.compose.runtime.LaunchedEffect(hostActivity?.external?.importUri) {
+        hostActivity?.external?.importUri?.let { selectedImportUri = it; hostActivity.external.importUri = null; showImportPasswordDialog = true }
+    }
+    androidx.compose.runtime.LaunchedEffect(hostActivity?.external?.exportUri) {
+        val uri = hostActivity?.external?.exportUri
         if (uri != null) {
-            selectedImportUri = uri
-            showImportPasswordDialog = true
+            hostActivity.external.exportUri = null
+            val password = hostActivity.external.exportPassword
+            hostActivity.external.exportPassword = ""
+            try {
+                val out = context.contentResolver.openOutputStream(uri) ?: error("Cannot open output")
+                backupManager.exportToStream(out, password)
+                snackbarHostState.showSnackbar(context.getString(R.string.backup_exported))
+            } catch (_: Exception) { snackbarHostState.showSnackbar(context.getString(R.string.operation_failed)) }
         }
     }
 
@@ -523,15 +563,15 @@ fun SettingsScreen(
             },
             confirmButton = {
                 Button(onClick = {
-                    if (exportPassword.length < 4) {
-                        exportError = "Password must be at least 4 characters"
+                    if (exportPassword.length < 12) {
+                        exportError = "Password must be at least 12 characters"
                     } else if (exportPassword != exportPasswordConfirm) {
                         exportError = "Passwords do not match"
                     } else {
-                        pendingExportPassword = exportPassword
+                        hostActivity?.external?.exportPassword = exportPassword
                         showExportPasswordDialog = false
                         val fileName = "GharHisab_Backup_${SimpleDateFormat("yyyyMMdd_HHmm").format(Date())}.gharhisab"
-                        exportLauncher.launch(fileName)
+                        hostActivity?.exportDocument?.launch(fileName)
                     }
                 }) {
                     Text("Export")
@@ -582,13 +622,8 @@ fun SettingsScreen(
                             try {
                                 val inputStream = context.contentResolver.openInputStream(uri)
                                 if (inputStream != null) {
-                                    val result = backupManager.importFromStream(inputStream, importPassword)
-                                    if (result.isSuccess) {
-                                        showImportPasswordDialog = false
-                                        snackbarHostState.showSnackbar("Successfully restored ${result.getOrNull()} transactions!")
-                                    } else {
-                                        importError = "Failed to restore: Incorrect password or invalid file"
-                                    }
+                                    restorePreview = backupManager.preview(backupManager.readBounded(inputStream), importPassword)
+                                    showImportPasswordDialog = false
                                 } else {
                                     importError = "Cannot open selected file"
                                 }
@@ -613,27 +648,12 @@ fun SettingsScreen(
         )
     }
 
-    // Google Drive Sync Information Dialog
     if (showGoogleDriveInfoDialog) {
-        AlertDialog(
-            onDismissRequest = { showGoogleDriveInfoDialog = false },
-            title = { Text("Google Drive Cloud Sync") },
-            text = {
-                Column {
-                    Text(
-                        text = "Google Drive Cloud Synchronization backs up your financial database directly to your personal Google Drive hidden App Data Folder (AES-256-GCM encrypted).\n\n" +
-                               "Because GharHisab is 100% private and offline-first, your financial records never pass through any third-party company server. You can also export local encrypted backup files anytime.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            },
-            confirmButton = {
-                Button(onClick = { showGoogleDriveInfoDialog = false }) {
-                    Text("Understood")
-                }
-            }
-        )
+        com.sindantechnologies.gharhisab.ui.screens.backup.DriveBackupPanel(backupManager) { showGoogleDriveInfoDialog = false }
+    }
+    restorePreview?.let { preview ->
+        com.sindantechnologies.gharhisab.ui.screens.backup.RestorePreviewDialog(preview, backupManager,
+            onDismiss = { restorePreview = null }, onRestored = { restorePreview = null; showImportPasswordDialog = false })
     }
 
     Scaffold(
@@ -723,14 +743,14 @@ fun SettingsScreen(
                     icon = if (currentLockMode == AppLockMode.BIOMETRIC) Icons.Filled.Fingerprint else Icons.Filled.Lock,
                     title = "Application Lock",
                     value = currentLockMode.title,
-                    onClick = { showLockModeDialog = true },
+                    onClick = { authenticate { showLockModeDialog = true } },
                 )
                 if (currentLockMode != AppLockMode.OFF) {
                     SettingsItem(
                         icon = Icons.Filled.Shield,
                         title = "Auto-lock Timeout",
                         value = currentLockTimeout.label,
-                        onClick = { showTimeoutDialog = true },
+                        onClick = { authenticate { showTimeoutDialog = true } },
                     )
                 }
             }
@@ -739,6 +759,7 @@ fun SettingsScreen(
 
             // Data & Storage
             SettingsGroup(title = stringResource(R.string.settings_data)) {
+                SettingsItem(icon = Icons.Filled.CloudDownload, title = stringResource(R.string.backup_rollback), value = "", onClick = { authenticate { showRollback = true } })
                 SettingsItem(
                     icon = Icons.Filled.PhoneAndroid,
                     title = stringResource(R.string.settings_storage),
@@ -752,7 +773,7 @@ fun SettingsScreen(
                 SettingsItem(
                     icon = Icons.Filled.Cloud,
                     title = "Google Drive Cloud Sync",
-                    value = "Encrypted AppDataFolder",
+                    value = stringResource(R.string.drive_model_short),
                     onClick = { showGoogleDriveInfoDialog = true },
                 )
                 SettingsItem(
@@ -765,7 +786,7 @@ fun SettingsScreen(
                     icon = Icons.Filled.CloudDownload,
                     title = "Restore from Encrypted Backup",
                     value = "Import file",
-                    onClick = { importLauncher.launch(arrayOf("*/*")) },
+                    onClick = { hostActivity?.importDocument?.launch(arrayOf("*/*")) },
                 )
             }
 

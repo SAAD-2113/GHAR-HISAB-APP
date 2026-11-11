@@ -1,74 +1,69 @@
-# Version 3 implementation record
+# Version 3 implementation and verification
 
-## Inspection and implementation checklist
+Version **3.0.0**, version code **4**. Application ID: `com.sindantechnologies.gharhisab`. The Version 3 implementation is present; production acceptance still requires Google Cloud configuration and physical-device validation. See [Google Drive setup](GOOGLE_DRIVE_SETUP.md).
 
-This increment addresses Stage 1 (transaction form stabilization). Stages 2–7 remain open; existing implementations below are not evidence of meeting their acceptance criteria.
+## Implemented behavior
 
-- Application ID/package: `com.sindantechnologies.gharhisab`; version code 3, version name 1.2.0.
-- Gradle 8.7, AGP 8.4.0, Kotlin/Compose compiler 2.0.0, KSP 2.0.0-1.0.22; Java bytecode target 17; min SDK 29, compile/target SDK 34. The README's API 35 statement is stale.
-- Single FragmentActivity, edge-to-edge Compose Material 3, Navigation Compose, manually injected repositories and ViewModels; red/gold Classic and Midnight themes.
-- Room 2.6.1 database version 2, with explicit migration 1→2. Transactions, categories, budgets and planned expenses already exist. Monetary `Long` values are **paisa**, not whole rupees. Preserve this unit and existing data.
-- Add/edit forms already have sticky bottom actions and scrolling. Both independently apply IME padding to the form and action, without consuming Scaffold padding. Fixed-height actions and four-column, single-line category labels also limit accessibility. The screenshot appears to show an older layout; it cannot establish that the current checkout has precisely the same defect.
-- Reminders already use AlarmManager with reboot/update receivers, but individual preferences, genuine recurrence, safe stale-alarm reconciliation, and robust permission/error UX remain incomplete. Mark-paid is not currently one atomic database transaction, so concurrent calls can duplicate payments.
-- PIN and biometric/device authentication exist, but startup loads OFF before saved lock settings arrive; selected timeouts are ignored; rate limiting is only in composition memory; recovery and authenticated settings changes need design and tests. Do not describe this implementation as hardened security.
-- Local password-encrypted AES-GCM file export/import exists. Drive is an informational dialog, not OAuth or an API integration. Backup schema validation, consistent snapshots, restore preview, rollback, and recovery compatibility need additional work.
-- Daily recommendation exists: max(0, balance − unpaid upcoming commitments − reserve) / remaining days including today. No rolling spending analysis or depletion-date model exists. Overdue commitment handling needs correction.
-- English/Urdu/Punjabi language selection exists, but translation coverage and application-wide locale switching are incomplete. Transaction-form resources added here do not constitute complete localization.
+- **Transaction forms:** scrolling content and a flexible bottom Save action share one IME inset owner, consume Scaffold padding and respect system navigation. Category grids adapt to width/font scale. Save failures retain inputs; repeated in-flight actions are guarded. Red/gold Classic and Midnight themes remain available.
+- **Planned expenses:** create/edit/postpone/cancel/delete, due/overdue summaries, notes/categories, actual payment amount/method and per-plan reminders. Weekly/monthly/yearly intervals retain the original monthly day across short months. Paying a plan creates its actual transaction and next occurrence in one Room transaction; repeated/concurrent payment requests return the existing transaction. Due dates never automatically create payments.
+- **Reminders:** optional due-day/1/3/7-day inexact AlarmManager alarms, notification permission explanation, private generic notifications, persistent delivery deduplication, stale-alarm cancellation and reconciliation after edits/deletion/reboot/app updates/time changes. Android can delay delivery. Scheduling failures are separate from successful plan writes, avoiding duplicate plans on retry; the planned-expense screen reports them. Returning to the app retries reconciliation.
+- **App lock:** default OFF; optional 4-digit app PIN or Android biometric/device credential; authenticated lock-setting changes; configured background timeouts; cold-start loading gate and secure recent-task previews. Financial navigation/dialogs are removed while locked. PIN hashes use unique salts and PBKDF2-HMAC-SHA256; legacy hashes remain verifiable. Failed attempts persist and incur increasing delays after five failures. A randomly generated recovery key can disable a forgotten app PIN without deleting records. Record the displayed key outside the device. App lock does **not** encrypt Room.
+- **Backup:** real Google `AuthorizationClient`, minimal Drive `appDataFolder` scope, authenticated HTTPS API upload/list/download, explicit snapshot selection, no-backup/error/cancellation states and revoke-access action. Manual immutable encrypted snapshots are the synchronization model. Sync Now refreshes the list, not a two-way merge. Local encrypted file export/import remains supported.
+- **Restore safeguards:** password-derived AES-256-GCM portable files, version/schema/reference/size validation, preview and explicit replacement, stale-preview detection, atomic Room replacement, device-encrypted pre-restore safety archive and rollback. A pending restore journal is recovered before financial UI appears. Storage-finalization failures restore the previous data; unresolved rollback failures block financial UI until startup recovery. PINs, recovery hashes and OAuth tokens are excluded from portable snapshots and Android system backups.
+- **Insights:** actual balance and spending history, rolling weighted spending rate, configurable reserve, unpaid/overdue recurring commitments, budget-capped daily allowance, shortfall/trend warnings and an estimated depletion date. Preliminary results are labelled and assumptions explained. Risk notifications are opt-in, private and deduplicated; checks run while the dashboard is active, not through a background forecasting worker.
+- **Language/accessibility:** new feature resources in English, Urdu and Punjabi; saved language applied across the Compose resource context; Urdu RTL; scrollable editors/dialogs and wrapping controls. Existing hardcoded English copy/category names elsewhere remain a localization limitation. This is not a claim of complete app-wide translation or physical-device accessibility certification.
 
-## Execution checklist
+## Financial model and migration
 
-- [x] Inspect existing architecture, schema, units, navigation, themes, reminders, security, backup and calculations.
-- [x] Consolidate IME handling at the transaction Scaffold; consume its content padding; respect safe system insets on the action area.
-- [x] Allow action height to grow and categories to wrap/adapt to font scale and width.
-- [x] Preserve forms on write failures; prevent repeated in-flight save requests; keep one category collector when toggling transaction type.
-- [x] Add transaction-form string resources in English, Urdu and Punjabi; fill all existing Urdu/Punjabi resource gaps without suppressing lint.
-- [x] Explicitly use Fragment 1.6.2 to fix the pre-existing Activity Result incompatibility introduced by Biometric 1.1’s transitive Fragment 1.2 dependency.
-- [x] Build debug APK and instrumentation APK; run lint and unit/host Android UI tests (results below).
-- [ ] Validate OEM keyboards, gesture/three-button navigation and physical-device layouts.
-- [ ] Stage 2: atomic planned-payment conversion, recurrence, preferences, reconciliation and dashboard.
-- [ ] Stage 3: secure lock lifecycle, persistent throttling, authenticated changes and recovery.
-- [ ] Stage 4: Google authorization, encrypted Drive backup/recovery, validated restore and rollback.
-- [ ] Stage 5: transparent forecasts with calendar, history, shortfall and double-counting tests.
-- [ ] Stage 6: application-wide localization, accessibility, theme and visual refinements.
-- [ ] Stage 7: device and migration acceptance tests across the complete feature set.
+All stored money remains integer **paisa**. No rupee/paisa conversion is performed during migration. Intermediate forecast arithmetic uses checked Long operations or BigInteger; presentation may use floating point only for chart/progress ratios.
 
-No database schema, migration, monetary units or application version are changed in this increment. Existing financial records remain compatible.
+`discretionary = actual available balance − unpaid commitments through month end − reserve`
 
-## Verified results (25 October 2026)
+`daily limit = max(0, min(discretionary, remaining budget if configured)) / remaining calendar days including today`
 
-- `:app:assembleDebug`: passed; debug APK generated.
-- `:app:testDebugUnitTest`: **29 tests passed, zero failures/errors/skips**. This includes 9 Robolectric Compose form tests, 1 file-backed Room persistence test and 19 existing calculation, parser, serialization and cryptography tests.
-- Form coverage: expense and income saves with exact paisa values, edit, confirmed delete, repeated save requests, a real SQLite foreign-key failure followed by retry, 320×480 layout, 640×360 landscape, large text, synthetic navigation/IME insets, Midnight theme, RTL, and actual Urdu resource rendering. Synthetic insets do not exercise a physical keyboard or OEM navigation implementation.
-- Persistence coverage: insert/edit records, close/reopen the database file, verify the record and income/expense totals, then delete. This is not a complete process-death or migration test.
-- `:app:lintDebug`: passed, **0 errors, 40 warnings and 1 informational finding**. Earlier errors were the incompatible Fragment dependency and missing translations; both were resolved. Remaining warnings include pre-existing unused resources, icon placement, SDK checks, date formatting and a database singleton context reference. Added direct test/Fragment dependency declarations also produce version-catalog style warnings. No lint checks were disabled and no baseline was introduced.
-- `:app:assembleDebugAndroidTest`: passed. Instrumentation tests were **compiled, not run on a device**.
-- No emulator/device is attached; hardware acceleration (`/dev/kvm`) is unavailable. Device authentication, alarms, cross-device restoration and OEM UI acceptance have not been verified.
-- Passing the existing cryptographic helper tests does not establish that the complete app-lock or backup lifecycle is secure.
+Reserve defaults to zero and is editable. Overdue unpaid occurrences are included. Paid planned transactions are excluded from the ordinary daily-spending rate to avoid counting a recurring bill in both that rate and the future commitment schedule. The last seven observed days receive twice the weight of the preceding seven. Estimates are preliminary below ten observed days; depletion dates require a known balance and at least three days. The forecast simulates dated commitments and that spending rate for at most one year, assuming no unreceived future income. It is an estimate, not a guarantee.
 
-## Important changed files
+Room schema **2 → 3** adds reminder/recurrence preferences and transaction-to-plan provenance. Existing paid-plan references populate the transaction link. Budget rows are copied while normalizing a default that differed between fresh-v2 and v1-migrated databases. The original **1 → 2** migration remains registered. No destructive fallback or clearing of user data is added. Backup payload version 2 accepts v1 backups with defaults for new fields.
 
-- `app/src/main/java/com/sindantechnologies/gharhisab/ui/screens/transaction/AddTransactionScreen.kt` and `EditTransactionScreen.kt`: one IME inset owner, consumed Scaffold padding, safe bottom action insets, flexible action height, translated labels and visible save errors.
-- `TransactionCategories.kt` in the same directory: shared adaptive category grid, wrapping labels, radio-button selection semantics and localized payment labels.
-- `AddTransactionViewModel.kt` and `EditTransactionViewModel.kt`: guard repeated in-flight saves, catch database write failures without reporting success, retain form values for retry. Add mode now maintains a single category subscription.
-- `app/src/main/res/values*/strings.xml`: transaction labels and complete resource-key coverage for existing Urdu/Punjabi bundles. Corrected the inaccurate onboarding claim that private local storage encrypts the database. Many hardcoded strings elsewhere and app-wide locale activation remain outside this increment.
-- `app/build.gradle.kts`: compatible Fragment dependency; real host JSON implementation for the existing JSON test; Robolectric/Compose test dependencies and Android instrumentation dependencies.
-- `TransactionFormTest.kt` and `TransactionPersistenceTest.kt` under `app/src/test`: behavior and persistence regression coverage.
+## Main files
 
-## Build and install
+| Area | Paths under `app/src/main/java/com/sindantechnologies/gharhisab/` |
+| --- | --- |
+| Responsive forms | `ui/screens/transaction/{AddTransactionScreen,EditTransactionScreen,TransactionCategories}.kt` and ViewModels |
+| Planned expenses | `data/repository/PlannedExpenseRepository.kt`, `domain/model/Recurrence.kt`, `ui/screens/planned/`, `util/reminder/` |
+| Lock lifecycle | `MainActivity.kt`, `ExternalActions.kt`, `ui/screens/security/LockScreen.kt`, `util/security/`, `data/local/datastore/UserPreferencesRepository.kt` |
+| Backup/Drive | `data/backup/{BackupManager,BackupPayload,SafetyVault,DriveBackupClient}.kt`, `ui/screens/backup/DriveBackupPanel.kt`, Settings |
+| Forecasts | `domain/model/SpendingForecast.kt`, `ui/screens/home/{HomeViewModel,FinancialInsightsCard}.kt` |
+| Migration | `data/local/room/GharHisabDatabase.kt`, entities and DAOs |
 
-Cloud environment:
+Also changed: manifest/Android backup exclusions, localized strings, app build/version configuration and regression tests under `app/src/test`.
+
+## Build and tests
+
+Requirements: JDK 17, Android SDK API 34/build-tools 34.0.0. Gradle wrapper 8.7, AGP 8.4.0, Kotlin/Compose compiler 2.0.0; minimum Android API 29. No credentials are needed for an offline build.
 
 ```bash
+# Managed cloud environment only:
 source /workspace/.gharhisab-tools/activate.sh
 cd /workspace/GHAR-HISAB-APP
+
+# Cloud or locally configured Android development machine:
 bash gradlew --no-daemon --max-workers=3 :app:assembleDebug :app:testDebugUnitTest :app:lintDebug :app:assembleDebugAndroidTest
 ```
 
-The environment provides checksum-verified Temurin JDK 17.0.21+9, Android command-line tools 19.0, API 34, build-tools 34.0.0 and Gradle 8.7. The activation script uses the platform proxy and system CA trust store, without disabling TLS verification. Setup files and dependency caches live outside the checkout in `/workspace/.gharhisab-tools`. The environment draft contains the installation script and startup instructions; publication and restoration in a new task have not been tested.
+Verified on 11 November 2026:
 
-APK: `app/build/outputs/apk/debug/app-debug.apk`.
+- `:app:assembleDebug`: passed; debug APK generated.
+- `:app:testDebugUnitTest`: **55 tests passed, zero failures/errors/skips**, including host Android UI tests.
+- `:app:lintDebug`: passed with **zero errors, 85 warnings and 2 informational findings**. Remaining warnings include pre-existing dependency-update suggestions, icon placement, date formatting and a database-context reference, plus new direct-dependency/catalog-style suggestions, plural-resource candidates and Compose state boxing suggestions. No lint baseline/check disabling was introduced.
+- `:app:assembleDebugAndroidTest`: passed; instrumentation APK compiled, **not executed on a device**.
+- `git diff --check`: passed.
 
-On a connected test device with USB debugging enabled:
+Intermediate failures included an API-31-only BigInteger call, a test setup returning a non-Unit value, asynchronous Room test cleanup and an incorrect Kotlin DSL language-split property name. These were corrected; the final build/check command passed. Actual device and Google authorization results are not implied by these host checks.
+
+Coverage includes exact transaction persistence; income/expense/edit/delete and failure retry; small/landscape/large-font/RTL Compose forms with synthetic keyboard/navigation insets; schema-2 migration; 12 concurrent mark-paid requests; recurrence boundaries; negative/unknown balances, weighted spending, future income, shortfalls and planned-payment double counting; encrypted preview/restore/rollback; tampered/wrong-password/unknown-schema rejection; stale previews; interrupted and failed restore recovery; persistent PIN throttling/recovery and lock timing; reminder rescheduling/cancellation/deduplication; actual fresh-install MainActivity startup.
+
+APK: `app/build/outputs/apk/debug/app-debug.apk`. On a connected test device:
 
 ```bash
 adb devices
@@ -77,16 +72,14 @@ adb shell am start -n com.sindantechnologies.gharhisab/.MainActivity
 bash gradlew :app:connectedDebugAndroidTest
 ```
 
-This APK uses the cloud environment’s debug signing key. An existing installation signed with another key cannot be updated with it. Preserve financial data; use the original signing key or a separate test device instead of uninstalling the existing app to bypass a signature mismatch.
+Use the original signing key or a separate test device if the installed app has a different signer. Do not uninstall an existing financial database to bypass a signature mismatch.
 
-## Remaining Version 3 work and configuration
+## Remaining configuration and acceptance limits
 
-This is an incremental Stage 1 delivery, **not the completed Version 3 release**. Existing reminder/security/backup/insight code was inspected, not reimplemented or certified in this increment.
+- The owner has confirmed Google Cloud is not configured. Follow the [setup guide](GOOGLE_DRIVE_SETUP.md), then exercise real authorization, upload/download and second-device restore. No Google passwords/tokens/keys belong in the repository.
+- There is no attached Android device/emulator and `/dev/kvm` is unavailable. Instrumentation tests compile but have not run. Host Robolectric tests do not verify OEM keyboard/navigation, device credentials, Android Keystore hardware, real notification delivery or Android process termination at every restore boundary.
+- Test API 29 and current Android releases, both themes, actual IME/nav modes, large fonts, lock/recovery/rotation/backgrounding, denied notifications, reboot and interrupted restores before publishing a production release. The host migration test covers a populated v2 database; a physical v1 upgrade remains part of acceptance.
+- Cloud list is limited to the latest 20 snapshots. No background uploads, cloud retention UI or automatic record merge is implemented. Core financial work remains offline.
+- PIN-based application access control is not database encryption and cannot protect against an attacker controlling the OS. Four-digit PINs depend on application rate limiting; use the device's secure screen lock as well. Portable backup passwords must be stored safely by the user.
 
-- **Reminders:** implement per-plan timing/enabled preferences, real recurrence, atomic/idempotent payment conversion, edit/postpone reconciliation and permission explanations. Current alarms attempt exact delivery with fallback, and automatically use due-day/one-day/three-day timings. Android may delay delivery; permissions alone do not prove scheduling works.
-- **App lock:** fix cold-start loading, enforce selected background timeout, persist throttling, protect recent-task previews, authenticate lock changes and define a recovery strategy. Default OFF is preserved. Current PIN hashing and device authentication need lifecycle/device testing; app lock does not encrypt Room.
-- **Drive:** there is no working account connection, Drive upload/download or synchronization. The Settings dialog currently describes intended behavior and must be replaced by a truthful operational UI. Implement a Google Cloud project with Drive API enabled, OAuth consent/test-user configuration and an Android OAuth client for the application ID and signing-certificate SHA-1. Client configuration is not an embedded client secret; do not put tokens or recovery credentials in the repository.
-- **Encrypted restoration:** existing local files use password-derived AES-GCM. A password permits migration in principle, but version validation, bounded input, strong KDF evolution, consistent DB snapshots, restore preview, safety backup/rollback and an actually tested second-device workflow remain required. Losing the recovery password can make backups unrecoverable. Do not silently overwrite newer local records.
-- **Forecasts:** current daily limit is `max(0, available balance − upcoming commitments − protected reserve) / remaining days including today`, using integer paisa. The reserve defaults to zero and is editable. No depletion date, rolling-history rate, confidence model or opt-out risk notifications are implemented. Correct overdue commitments and prevent double-counting paid plans before extending the model.
-- **Data preservation:** no migration or monetary-unit conversion was introduced. Keep the existing version-2 schema and 1→2 migration intact for this increment; future schema changes require explicit migration tests with existing data.
-- **Device acceptance:** verify actual small/large screens, large fonts, Urdu layouts, keyboard open/closed, gesture/three-button navigation, app restarts and both themes. Then test notification delivery, lock lifecycle and cross-device restore as their stages are implemented.
+The cloud setup/startup draft has been updated for reuse; publishing that draft and testing a new environment snapshot are separate platform actions.

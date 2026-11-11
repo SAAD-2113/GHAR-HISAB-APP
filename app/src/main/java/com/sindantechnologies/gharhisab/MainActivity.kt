@@ -1,94 +1,97 @@
 package com.sindantechnologies.gharhisab
 
-import android.Manifest
-import android.content.pm.PackageManager
-import android.os.Build
 import android.os.Bundle
+import android.os.SystemClock
+import android.view.WindowManager
 import androidx.fragment.app.FragmentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
-import androidx.core.content.ContextCompat
-import com.sindantechnologies.gharhisab.domain.model.AppLockMode
-import com.sindantechnologies.gharhisab.domain.model.AppLockTimeout
-import com.sindantechnologies.gharhisab.domain.model.ThemeMode
+import androidx.compose.runtime.*
+import androidx.compose.material3.Surface
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.lifecycle.lifecycleScope
+import com.sindantechnologies.gharhisab.domain.model.*
 import com.sindantechnologies.gharhisab.ui.navigation.GharHisabNavHost
 import com.sindantechnologies.gharhisab.ui.screens.security.LockScreen
 import com.sindantechnologies.gharhisab.ui.theme.GharHisabTheme
-import com.sindantechnologies.gharhisab.util.reminder.NotificationHelper
+import com.sindantechnologies.gharhisab.util.reminder.ReminderScheduler
+import kotlinx.coroutines.launch
 
-/**
- * Single-activity host for the GharHisab application.
- *
- * Observes the current [ThemeMode] from DataStore and wraps
- * the entire navigation graph in [GharHisabTheme].
- */
 class MainActivity : FragmentActivity() {
-
-    private val notificationPermissionLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { /* Permission result handled */ }
-
-    private var isAppLocked by mutableStateOf(true)
-    private var lastBackgroundTimeMs: Long = 0L
-
+    val external by lazy { androidx.lifecycle.ViewModelProvider(this)[ExternalActions::class.java] }
+    val googleAuthorization = registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.StartIntentSenderForResult()) {
+        external.googleResult = if (it.resultCode == RESULT_OK) it.data else null
+        external.googleCancelled = it.resultCode != RESULT_OK
+    }
+    val importDocument = registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.OpenDocument()) { external.importUri = it }
+    val exportDocument = registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.CreateDocument("application/octet-stream")) {
+        external.exportUri = it
+        if (it == null) external.exportPassword = ""
+    }
+    private var recovered by mutableStateOf(false)
+    private var recoveryFailed by mutableStateOf(false)
+    private val session by lazy { androidx.lifecycle.ViewModelProvider(this)[com.sindantechnologies.gharhisab.util.security.LockSession::class.java] }
+    private var covered by mutableStateOf(false)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-
-        NotificationHelper.createNotificationChannel(this)
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-            }
+        // Protect first frame, before asynchronous security preferences have loaded.
+        window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        val container = (application as GharHisabApplication).container
+        lifecycleScope.launch {
+            try { container.backupManager.recoverInterruptedRestore(); recovered = true }
+            catch (_: Exception) { recoveryFailed = true }
         }
-
-        val app = application as GharHisabApplication
-
         setContent {
-            val themeMode by app.container.userPreferencesRepository.themeModeFlow
-                .collectAsState(initial = ThemeMode.FOLLOW_SYSTEM)
-
-            val lockMode by app.container.userPreferencesRepository.appLockModeFlow
-                .collectAsState(initial = AppLockMode.OFF)
-
-            val pinSalt by app.container.userPreferencesRepository.appLockPinSaltFlow
-                .collectAsState(initial = "")
-
-            val pinHash by app.container.userPreferencesRepository.appLockPinHashFlow
-                .collectAsState(initial = "")
-
-            GharHisabTheme(themeMode = themeMode) {
-                if (isAppLocked && lockMode != AppLockMode.OFF) {
-                    LockScreen(
-                        lockMode = lockMode,
-                        pinSalt = pinSalt,
-                        pinHash = pinHash,
-                        onUnlock = { isAppLocked = false }
-                    )
-                } else {
-                    GharHisabNavHost(
-                        appContainer = app.container
-                    )
+            val recoveryBlocked by container.backupManager.recoveryBlocked.collectAsState()
+            val navigation = androidx.navigation.compose.rememberNavController()
+            val security by container.userPreferencesRepository.securityState.collectAsState(initial = null)
+            val language by container.userPreferencesRepository.languageFlow.collectAsState(initial = Language.ENGLISH)
+            val theme by container.userPreferencesRepository.themeModeFlow.collectAsState(initial = ThemeMode.FOLLOW_SYSTEM)
+            SideEffect {
+                session.timeout = security?.timeout ?: 0
+                if (security?.mode == AppLockMode.OFF) { session.locked = false; window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE) }
+                else window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+            }
+            val localizedContext = remember(language) {
+                android.view.ContextThemeWrapper(this@MainActivity, R.style.Theme_GharHisab).apply {
+                    applyOverrideConfiguration(android.content.res.Configuration(this@MainActivity.resources.configuration).apply { setLocale(java.util.Locale(language.code)) })
                 }
             }
+            SideEffect { java.util.Locale.setDefault(java.util.Locale(language.code)) }
+            CompositionLocalProvider(
+                androidx.compose.ui.platform.LocalContext provides localizedContext,
+                androidx.compose.ui.platform.LocalConfiguration provides localizedContext.resources.configuration,
+                androidx.compose.ui.platform.LocalLayoutDirection provides if (language == Language.URDU) androidx.compose.ui.unit.LayoutDirection.Rtl else androidx.compose.ui.unit.LayoutDirection.Ltr,
+            ) {
+            GharHisabTheme(theme) {
+                val state = security
+                val blocked = recoveryBlocked || !recovered || state == null || covered || (state.mode != AppLockMode.OFF && session.locked)
+                androidx.activity.compose.BackHandler(enabled = blocked) { moveTaskToBack(true) }
+                when {
+                    recoveryFailed || recoveryBlocked -> Surface(Modifier.fillMaxSize()) { androidx.compose.material3.Text(getString(R.string.restore_startup_failed)) }
+                    !recovered || state == null || covered -> Surface(Modifier.fillMaxSize()) {}
+                    state.mode != AppLockMode.OFF && session.locked -> LockScreen(container.userPreferencesRepository, state.mode) { session.locked = false }
+                    else -> GharHisabNavHost(container, navigation)
+                }
+            }
+            }
         }
     }
-
     override fun onStop() {
         super.onStop()
-        lastBackgroundTimeMs = System.currentTimeMillis()
+        if (!isChangingConfigurations) session.leave(SystemClock.elapsedRealtime())
+        covered = true
     }
-
     override fun onStart() {
         super.onStart()
-        if (lastBackgroundTimeMs > 0L) {
-            isAppLocked = true
+        session.enter(SystemClock.elapsedRealtime())
+        covered = false
+        val container = (application as GharHisabApplication).container
+        lifecycleScope.launch {
+            runCatching { ReminderScheduler.reconcile(this@MainActivity, container.plannedExpenseRepository.getActivePlannedExpensesList()) }
         }
     }
 }

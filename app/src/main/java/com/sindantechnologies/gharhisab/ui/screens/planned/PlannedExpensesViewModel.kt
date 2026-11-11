@@ -18,6 +18,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import java.util.Calendar
 
@@ -30,6 +31,9 @@ data class PlannedExpensesUiState(
     val totalPlannedSpendingPaisa: Long = 0L,
     val currentAvailableFundsPaisa: Long = 0L,
     val expectedRemainingFundsPaisa: Long = 0L,
+    val isSaving: Boolean = false,
+    val operationFailed: Boolean = false,
+    val operationSerial: Int = 0,
     val isLoading: Boolean = true
 )
 
@@ -66,8 +70,8 @@ class PlannedExpensesViewModel(
             combine(
                 plannedExpenseRepository.getAllPlannedExpenses(),
                 categoryRepository.getActiveCategories(),
-                transactionRepository.getAllTimeIncomeTotal(),
-                transactionRepository.getAllTimeExpenseTotal(),
+                transactionRepository.getAllTransactions().map { rows -> rows.filter { it.type == TransactionType.INCOME && it.timestamp <= System.currentTimeMillis() }.fold(0L) { sum, row -> Math.addExact(sum, row.amount) } },
+                transactionRepository.getAllTransactions().map { rows -> rows.filter { it.type == TransactionType.EXPENSE && it.timestamp <= System.currentTimeMillis() }.fold(0L) { sum, row -> Math.addExact(sum, row.amount) } },
                 userPreferencesRepository.startingBalanceFlow
             ) { plannedList, catList, totalIncome, totalExpense, startingBalance ->
                 val catMap = catList.associateBy { it.id }
@@ -100,69 +104,37 @@ class PlannedExpensesViewModel(
                     isLoading = false
                 )
             }.collect { newState ->
-                _uiState.value = newState
+                _uiState.value = newState.copy(isSaving = _uiState.value.isSaving, operationFailed = _uiState.value.operationFailed, operationSerial = _uiState.value.operationSerial)
             }
         }
     }
 
-    fun addPlannedExpense(
-        description: String,
-        amountPaisa: Long,
-        categoryId: Long,
-        plannedDate: Long,
-        notes: String?,
-        recurrence: String? = "NONE"
-    ) {
+    private fun action(block: suspend () -> Unit) {
+        if (_uiState.value.isSaving) return
+        _uiState.value = _uiState.value.copy(isSaving = true, operationFailed = false)
         viewModelScope.launch {
-            val item = PlannedExpenseEntity(
-                description = description,
-                expectedAmount = amountPaisa,
-                categoryId = categoryId,
-                plannedDate = plannedDate,
-                notes = notes,
-                recurrence = recurrence,
-                status = PlannedExpenseStatus.PLANNED
-            )
-            val newId = plannedExpenseRepository.insertPlannedExpense(item)
-            ReminderScheduler.scheduleReminders(context, item.copy(id = newId))
+            try {
+                block()
+                _uiState.value = _uiState.value.copy(isSaving = false, operationSerial = _uiState.value.operationSerial + 1)
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e }
+            catch (_: Exception) { _uiState.value = _uiState.value.copy(isSaving = false, operationFailed = true) }
         }
     }
 
-    fun markAsPaid(plannedExpenseId: Long, paymentMethod: PaymentMethod = PaymentMethod.CASH) {
-        viewModelScope.launch {
-            plannedExpenseRepository.markAsPaid(
-                plannedExpenseId = plannedExpenseId,
-                paymentMethod = paymentMethod
-            )
-            ReminderScheduler.cancelReminders(context, plannedExpenseId)
-        }
+    fun savePlan(item: PlannedExpenseEntity) = action {
+        if (item.id == 0L) plannedExpenseRepository.insertPlannedExpense(item)
+        else plannedExpenseRepository.updatePlannedExpense(item.copy(updatedAt = System.currentTimeMillis()))
     }
 
-    fun cancelPlannedExpense(id: Long) {
-        viewModelScope.launch {
-            plannedExpenseRepository.cancelPlannedExpense(id)
-            ReminderScheduler.cancelReminders(context, id)
-        }
+    fun markAsPaid(id: Long, paymentMethod: PaymentMethod = PaymentMethod.CASH, actualAmount: Long? = null) = action {
+        plannedExpenseRepository.markAsPaid(id, paymentMethod, actualAmount = actualAmount)
     }
-
-    fun reschedulePlannedExpense(id: Long, newDate: Long) {
-        viewModelScope.launch {
-            val existing = plannedExpenseRepository.getPlannedExpenseById(id) ?: return@launch
-            val updated = existing.copy(
-                plannedDate = newDate,
-                updatedAt = System.currentTimeMillis()
-            )
-            plannedExpenseRepository.updatePlannedExpense(updated)
-            ReminderScheduler.scheduleReminders(context, updated)
-        }
+    fun cancelPlannedExpense(id: Long) = action { plannedExpenseRepository.cancelPlannedExpense(id) }
+    fun reschedulePlannedExpense(id: Long, date: Long) = action {
+        val plan = plannedExpenseRepository.getPlannedExpenseById(id) ?: error("Missing plan")
+        plannedExpenseRepository.updatePlannedExpense(plan.copy(plannedDate = date, updatedAt = System.currentTimeMillis()))
     }
-
-    fun deletePlannedExpense(item: PlannedExpenseEntity) {
-        viewModelScope.launch {
-            plannedExpenseRepository.deletePlannedExpense(item)
-            ReminderScheduler.cancelReminders(context, item.id)
-        }
-    }
+    fun deletePlannedExpense(item: PlannedExpenseEntity) = action { plannedExpenseRepository.deletePlannedExpense(item) }
 
     class Factory(
         private val plannedExpenseRepository: PlannedExpenseRepository,

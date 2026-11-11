@@ -27,7 +27,7 @@ import kotlinx.coroutines.launch
         BudgetEntity::class,
         PlannedExpenseEntity::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -79,6 +79,22 @@ abstract class GharHisabDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE transactions ADD COLUMN plannedExpenseId INTEGER DEFAULT NULL")
+                db.execSQL("UPDATE transactions SET plannedExpenseId = (SELECT id FROM planned_expenses WHERE actualTransactionId = transactions.id LIMIT 1)")
+                // Normalize the v1-migrated and fresh-v2 budget defaults without discarding rows.
+                db.execSQL("CREATE TABLE budgets_v3 (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, categoryId INTEGER, month INTEGER NOT NULL, year INTEGER NOT NULL, amount INTEGER NOT NULL, warningThresholdPercent INTEGER NOT NULL DEFAULT 80)")
+                db.execSQL("INSERT INTO budgets_v3 SELECT id, categoryId, month, year, amount, warningThresholdPercent FROM budgets")
+                db.execSQL("DROP TABLE budgets")
+                db.execSQL("ALTER TABLE budgets_v3 RENAME TO budgets")
+                db.execSQL("ALTER TABLE planned_expenses ADD COLUMN remindersEnabled INTEGER NOT NULL DEFAULT 1")
+                db.execSQL("ALTER TABLE planned_expenses ADD COLUMN reminderDays TEXT NOT NULL DEFAULT '0,1,3'")
+                db.execSQL("ALTER TABLE planned_expenses ADD COLUMN recurrenceInterval INTEGER NOT NULL DEFAULT 1")
+                db.execSQL("ALTER TABLE planned_expenses ADD COLUMN recurrenceAnchorDay INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
         fun getDatabase(context: Context): GharHisabDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -86,7 +102,7 @@ abstract class GharHisabDatabase : RoomDatabase() {
                     GharHisabDatabase::class.java,
                     "gharhisab_database"
                 )
-                .addMigrations(MIGRATION_1_2)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                 .addCallback(DatabaseCallback(context))
                 .build()
                 INSTANCE = instance

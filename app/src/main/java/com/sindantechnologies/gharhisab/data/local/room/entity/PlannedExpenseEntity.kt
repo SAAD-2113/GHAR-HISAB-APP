@@ -1,5 +1,6 @@
 package com.sindantechnologies.gharhisab.data.local.room.entity
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
@@ -47,6 +48,10 @@ data class PlannedExpenseEntity(
     val recurrence: String? = null,
     val status: PlannedExpenseStatus = PlannedExpenseStatus.PLANNED,
     val actualTransactionId: Long? = null,
+    @ColumnInfo(defaultValue = "1") val remindersEnabled: Boolean = true,
+    @ColumnInfo(defaultValue = "'0,1,3'") val reminderDays: String = "0,1,3",
+    @ColumnInfo(defaultValue = "1") val recurrenceInterval: Int = 1,
+    @ColumnInfo(defaultValue = "0") val recurrenceAnchorDay: Int = 0,
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis()
 )

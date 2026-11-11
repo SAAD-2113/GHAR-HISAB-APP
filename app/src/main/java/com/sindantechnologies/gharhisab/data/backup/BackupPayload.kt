@@ -14,11 +14,13 @@ import org.json.JSONObject
  * Encapsulates the entire GharHisab financial state for encrypted backup and restore.
  */
 data class BackupPayload(
-    val backupVersion: Int = 1,
+    val backupVersion: Int = 2,
     val appVersion: String,
     val createdAtMillis: Long,
     val startingBalancePaisa: Long,
     val protectedReservePaisa: Long,
+    val language: String = "en",
+    val theme: String = "system",
     val categories: List<CategoryEntity>,
     val transactions: List<TransactionEntity>,
     val budgets: List<BudgetEntity>,
@@ -28,6 +30,8 @@ data class BackupPayload(
     fun toJsonString(): String {
         val root = JSONObject().apply {
             put("backupVersion", backupVersion)
+            put("language", language)
+            put("theme", theme)
             put("appVersion", appVersion)
             put("createdAtMillis", createdAtMillis)
             put("startingBalancePaisa", startingBalancePaisa)
@@ -60,6 +64,7 @@ data class BackupPayload(
                     put("paymentMethod", tx.paymentMethod?.name ?: JSONObject.NULL)
                     put("createdAt", tx.createdAt)
                     put("updatedAt", tx.updatedAt)
+                    put("plannedExpenseId", tx.plannedExpenseId ?: JSONObject.NULL)
                 })
             }
             put("transactions", txArray)
@@ -89,6 +94,10 @@ data class BackupPayload(
                     put("plannedDate", pe.plannedDate)
                     put("notes", pe.notes ?: JSONObject.NULL)
                     put("recurrence", pe.recurrence ?: JSONObject.NULL)
+                    put("recurrenceInterval", pe.recurrenceInterval)
+                    put("recurrenceAnchorDay", pe.recurrenceAnchorDay)
+                    put("remindersEnabled", pe.remindersEnabled)
+                    put("reminderDays", pe.reminderDays)
                     put("status", pe.status.name)
                     put("actualTransactionId", pe.actualTransactionId ?: JSONObject.NULL)
                     put("createdAt", pe.createdAt)
@@ -100,11 +109,30 @@ data class BackupPayload(
         return root.toString(2)
     }
 
+    fun validate() {
+        fun ids(values: List<Long>) { require(values.all { it > 0 } && values.size == values.toSet().size) }
+        ids(categories.map { it.id }); ids(transactions.map { it.id }); ids(budgets.map { it.id }); ids(plannedExpenses.map { it.id })
+        require(startingBalancePaisa >= 0 && protectedReservePaisa >= 0)
+        val cats = categories.associateBy { it.id }
+        require(transactions.all { it.amount > 0 && it.timestamp > 0 && cats[it.categoryId]?.transactionType == it.type })
+        require(budgets.all { it.amount > 0 && it.month in 1..12 && it.year in 1900..9999 && (it.categoryId == null || it.categoryId in cats) })
+        require(plannedExpenses.all { it.description.isNotBlank() && it.expectedAmount > 0 && it.plannedDate > 0 &&
+            cats[it.categoryId]?.transactionType == TransactionType.EXPENSE && it.recurrenceInterval in 1..120 &&
+            it.recurrence in listOf(null, "NONE", "WEEKLY", "MONTHLY", "YEARLY") && it.recurrenceAnchorDay in 0..31 &&
+            it.reminderDays.split(',').all { offset -> offset.toIntOrNull() in listOf(0,1,3,7) } })
+        // Reject totals that cannot be represented by the app's integer monetary model.
+        transactions.fold(0L) { total, row -> Math.addExact(total, row.amount) }
+        plannedExpenses.fold(0L) { total, row -> Math.addExact(total, row.expectedAmount) }
+    }
+
     companion object {
         fun fromJsonString(jsonStr: String): BackupPayload {
             val root = JSONObject(jsonStr)
 
-            val backupVersion = root.optInt("backupVersion", 1)
+            val backupVersion = root.getInt("backupVersion")
+            require(backupVersion in 1..2) { "Unsupported backup version" }
+            listOf("categories", "transactions", "budgets", "plannedExpenses").forEach { require(root.getJSONArray(it).length() <= 100000) }
+            require(root.getLong("createdAtMillis") > 0)
             val appVersion = root.optString("appVersion", "1.2.0")
             val createdAtMillis = root.optLong("createdAtMillis", System.currentTimeMillis())
             val startingBalancePaisa = root.optLong("startingBalancePaisa", 0L)
@@ -140,6 +168,7 @@ data class BackupPayload(
                         categoryId = obj.getLong("categoryId"),
                         description = if (obj.isNull("description")) null else obj.getString("description"),
                         timestamp = obj.getLong("timestamp"),
+                        plannedExpenseId = if (obj.isNull("plannedExpenseId")) null else obj.getLong("plannedExpenseId"),
                         paymentMethod = if (obj.isNull("paymentMethod")) null else PaymentMethod.valueOf(obj.getString("paymentMethod")),
                         createdAt = obj.optLong("createdAt", System.currentTimeMillis()),
                         updatedAt = obj.optLong("updatedAt", System.currentTimeMillis())
@@ -178,6 +207,10 @@ data class BackupPayload(
                         plannedDate = obj.getLong("plannedDate"),
                         notes = if (obj.isNull("notes")) null else obj.getString("notes"),
                         recurrence = if (obj.isNull("recurrence")) null else obj.getString("recurrence"),
+                        recurrenceInterval = obj.optInt("recurrenceInterval", 1),
+                        recurrenceAnchorDay = obj.optInt("recurrenceAnchorDay", 0),
+                        remindersEnabled = obj.optBoolean("remindersEnabled", true),
+                        reminderDays = obj.optString("reminderDays", "0,1,3"),
                         status = PlannedExpenseStatus.valueOf(obj.optString("status", PlannedExpenseStatus.PLANNED.name)),
                         actualTransactionId = if (obj.isNull("actualTransactionId")) null else obj.getLong("actualTransactionId"),
                         createdAt = obj.optLong("createdAt", System.currentTimeMillis()),
@@ -188,6 +221,8 @@ data class BackupPayload(
 
             return BackupPayload(
                 backupVersion = backupVersion,
+                language = root.optString("language", "en"),
+                theme = root.optString("theme", "system"),
                 appVersion = appVersion,
                 createdAtMillis = createdAtMillis,
                 startingBalancePaisa = startingBalancePaisa,
@@ -196,7 +231,7 @@ data class BackupPayload(
                 transactions = txList,
                 budgets = bgList,
                 plannedExpenses = peList
-            )
+            ).also { it.validate() }
         }
     }
 }

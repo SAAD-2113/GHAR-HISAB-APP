@@ -8,13 +8,14 @@ import javax.crypto.spec.PBEKeySpec
 import javax.crypto.spec.SecretKeySpec
 
 /**
- * Enterprise-grade cryptographic utilities for GharHisab.
+ * Versioned cryptographic utilities for GharHisab.
  * Handles PIN hashing (PBKDF2) and AES-256-GCM encryption/decryption.
  */
 object SecurityUtils {
 
     private const val PBKDF2_ALGORITHM = "PBKDF2WithHmacSHA256"
-    private const val HASH_ITERATIONS = 10_000
+    private const val HASH_ITERATIONS = 600_000
+    private const val LEGACY_ITERATIONS = 10_000
     private const val KEY_LENGTH_BITS = 256
     private const val SALT_LENGTH_BYTES = 16
     private const val GCM_IV_LENGTH_BYTES = 12
@@ -38,7 +39,8 @@ object SecurityUtils {
         val spec = PBEKeySpec(pin.toCharArray(), salt, HASH_ITERATIONS, KEY_LENGTH_BITS)
         val factory = SecretKeyFactory.getInstance(PBKDF2_ALGORITHM)
         val hash = factory.generateSecret(spec).encoded
-        return bytesToHex(hash)
+        spec.clearPassword()
+        return "v2:" + bytesToHex(hash)
     }
 
     /**
@@ -46,14 +48,19 @@ object SecurityUtils {
      */
     fun verifyPin(candidatePin: String, saltHex: String, expectedHashHex: String): Boolean {
         if (saltHex.isBlank() || expectedHashHex.isBlank()) return false
-        val salt = hexToBytes(saltHex)
-        val candidateHash = hashPin(candidatePin, salt)
-        return candidateHash.equals(expectedHashHex, ignoreCase = true)
+        return runCatching {
+            val salt = hexToBytes(saltHex)
+            val modern = expectedHashHex.startsWith("v2:")
+            val spec = PBEKeySpec(candidatePin.toCharArray(), salt, if (modern) HASH_ITERATIONS else LEGACY_ITERATIONS, KEY_LENGTH_BITS)
+            val derived = SecretKeyFactory.getInstance(PBKDF2_ALGORITHM).generateSecret(spec).encoded
+            spec.clearPassword()
+            java.security.MessageDigest.isEqual(derived, hexToBytes(expectedHashHex.removePrefix("v2:")))
+        }.getOrDefault(false)
     }
 
     /**
      * Encrypts plaintext bytes using AES-256-GCM with a key derived from the password.
-     * Output format: [16 bytes salt] + [12 bytes IV] + [ciphertext + 16 bytes GCM tag]
+     * Output format: [GHB2 version header] + [16 bytes salt] + [12 bytes IV] + [ciphertext + 16 bytes GCM tag]
      */
     fun encryptAesGcm(plainBytes: ByteArray, password: String): ByteArray {
         val salt = generateSalt(SALT_LENGTH_BYTES)
@@ -62,6 +69,7 @@ object SecurityUtils {
         val spec = PBEKeySpec(password.toCharArray(), salt, HASH_ITERATIONS, KEY_LENGTH_BITS)
         val factory = SecretKeyFactory.getInstance(PBKDF2_ALGORITHM)
         val secretKey = SecretKeySpec(factory.generateSecret(spec).encoded, "AES")
+        spec.clearPassword()
 
         val cipher = Cipher.getInstance("AES/GCM/NoPadding")
         val gcmSpec = GCMParameterSpec(GCM_TAG_LENGTH_BITS, iv)
@@ -74,13 +82,15 @@ object SecurityUtils {
         System.arraycopy(salt, 0, result, 0, salt.size)
         System.arraycopy(iv, 0, result, salt.size, iv.size)
         System.arraycopy(cipherText, 0, result, salt.size + iv.size, cipherText.size)
-        return result
+        return byteArrayOf(71, 72, 66, 50) + result
     }
 
     /**
      * Decrypts ciphertext bytes using AES-256-GCM.
      */
-    fun decryptAesGcm(encryptedBytes: ByteArray, password: String): ByteArray {
+    fun decryptAesGcm(input: ByteArray, password: String): ByteArray {
+        val modern = input.take(4).toByteArray().contentEquals(byteArrayOf(71, 72, 66, 50))
+        val encryptedBytes = if (modern) input.copyOfRange(4, input.size) else input
         val minLength = SALT_LENGTH_BYTES + GCM_IV_LENGTH_BYTES + 16
         require(encryptedBytes.size >= minLength) { "Invalid encrypted data size" }
 
@@ -94,9 +104,10 @@ object SecurityUtils {
         val cipherText = ByteArray(cipherTextLength)
         System.arraycopy(encryptedBytes, SALT_LENGTH_BYTES + GCM_IV_LENGTH_BYTES, cipherText, 0, cipherTextLength)
 
-        val spec = PBEKeySpec(password.toCharArray(), salt, HASH_ITERATIONS, KEY_LENGTH_BITS)
+        val spec = PBEKeySpec(password.toCharArray(), salt, if (modern) HASH_ITERATIONS else LEGACY_ITERATIONS, KEY_LENGTH_BITS)
         val factory = SecretKeyFactory.getInstance(PBKDF2_ALGORITHM)
         val secretKey = SecretKeySpec(factory.generateSecret(spec).encoded, "AES")
+        spec.clearPassword()
 
         val cipher = Cipher.getInstance("AES/GCM/NoPadding")
         val gcmSpec = GCMParameterSpec(GCM_TAG_LENGTH_BITS, iv)
@@ -117,6 +128,7 @@ object SecurityUtils {
     }
 
     fun hexToBytes(hex: String): ByteArray {
+        require(hex.length % 2 == 0 && hex.all { it.digitToIntOrNull(16) != null })
         val len = hex.length
         val data = ByteArray(len / 2)
         var i = 0

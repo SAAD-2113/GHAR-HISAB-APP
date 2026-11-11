@@ -13,10 +13,15 @@ android {
         applicationId = "com.sindantechnologies.gharhisab"
         minSdk = 29
         targetSdk = 34
-        versionCode = 3
-        versionName = "1.2.0"
+        versionCode = 4
+        versionName = "3.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    // Keep all supported languages available for the in-app language selector.
+    bundle {
+        language { enableSplit = false }
     }
 
     buildTypes {
@@ -50,6 +55,8 @@ android {
 }
 
 dependencies {
+    implementation("com.google.android.gms:play-services-auth:21.6.0")
+
     // Core
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)

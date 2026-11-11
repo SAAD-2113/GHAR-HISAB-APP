@@ -12,9 +12,8 @@ import androidx.fragment.app.FragmentActivity
  */
 object BiometricAuthManager {
 
-    private const val AUTHENTICATORS =
-        BiometricManager.Authenticators.BIOMETRIC_STRONG or
-        BiometricManager.Authenticators.DEVICE_CREDENTIAL
+    private val AUTHENTICATORS: Int
+        get() = (if (Build.VERSION.SDK_INT >= 30) BiometricManager.Authenticators.BIOMETRIC_STRONG else BiometricManager.Authenticators.BIOMETRIC_WEAK) or BiometricManager.Authenticators.DEVICE_CREDENTIAL
 
     /**
      * Checks if biometric or device lock is configured and available.
@@ -65,4 +64,10 @@ object BiometricAuthManager {
             onError(e.localizedMessage ?: "Failed to initialize biometric prompt")
         }
     }
+}
+
+fun findActivity(context: Context): FragmentActivity? = when (context) {
+    is FragmentActivity -> context
+    is android.content.ContextWrapper -> findActivity(context.baseContext)
+    else -> null
 }

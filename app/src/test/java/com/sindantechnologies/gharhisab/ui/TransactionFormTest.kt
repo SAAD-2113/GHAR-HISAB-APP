@@ -13,6 +13,7 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.core.graphics.Insets
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.ViewModelProvider
 import androidx.room.Room
@@ -48,6 +49,7 @@ class TransactionFormTest {
     private lateinit var db: GharHisabDatabase
     private lateinit var viewModel: AddTransactionViewModel
     private val store = ViewModelStore()
+    private val jobs = mutableListOf<kotlinx.coroutines.Job>()
     private lateinit var view: View
 
     @Before fun setup() {
@@ -64,7 +66,9 @@ class TransactionFormTest {
     }
 
     @After fun teardown() {
+        jobs.add(viewModel.viewModelScope.coroutineContext[kotlinx.coroutines.Job]!!)
         compose.runOnIdle { store.clear() }
+        awaitState { jobs.all { it.isCompleted } }
         db.close()
     }
 
@@ -193,6 +197,7 @@ class TransactionFormTest {
         val edit = ViewModelProvider(store, EditTransactionViewModel.Factory(
             id, TransactionRepository(db.transactionDao()), CategoryRepository(db.categoryDao())
         ))[EditTransactionViewModel::class.java]
+        jobs.add(edit.viewModelScope.coroutineContext[kotlinx.coroutines.Job]!!)
         compose.setContent {
             view = LocalView.current
             GharHisabTheme { EditTransactionScreen(edit, {}) }
