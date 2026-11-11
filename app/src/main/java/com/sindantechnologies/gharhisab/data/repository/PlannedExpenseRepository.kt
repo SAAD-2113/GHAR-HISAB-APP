@@ -8,11 +8,16 @@ import com.sindantechnologies.gharhisab.domain.model.PaymentMethod
 import com.sindantechnologies.gharhisab.domain.model.PlannedExpenseStatus
 import com.sindantechnologies.gharhisab.domain.model.TransactionType
 import kotlinx.coroutines.flow.Flow
+import androidx.room.withTransaction
+import com.sindantechnologies.gharhisab.data.local.room.GharHisabDatabase
+import com.sindantechnologies.gharhisab.domain.model.Recurrence
 
 class PlannedExpenseRepository(
-    private val plannedExpenseDao: PlannedExpenseDao,
-    private val transactionDao: TransactionDao,
+    private val database: GharHisabDatabase,
+    private val onChanged: suspend () -> Unit = {},
 ) {
+    private val plannedExpenseDao = database.plannedExpenseDao()
+    private val transactionDao = database.transactionDao()
 
     fun getAllPlannedExpenses(): Flow<List<PlannedExpenseEntity>> {
         return plannedExpenseDao.getAllPlannedExpenses()
@@ -39,25 +44,44 @@ class PlannedExpenseRepository(
     }
 
     suspend fun insertPlannedExpense(item: PlannedExpenseEntity): Long {
-        return plannedExpenseDao.insertPlannedExpense(item)
+        validate(item)
+        val id = plannedExpenseDao.insertPlannedExpense(item)
+        onChanged()
+        return id
     }
 
     suspend fun updatePlannedExpense(item: PlannedExpenseEntity) {
-        plannedExpenseDao.updatePlannedExpense(item)
+        validate(item)
+        database.withTransaction {
+            val current = plannedExpenseDao.getPlannedExpenseById(item.id) ?: error("Plan no longer exists")
+            check(current.status == PlannedExpenseStatus.PLANNED) { "Only unpaid plans can be edited" }
+            plannedExpenseDao.updatePlannedExpense(item.copy(status = current.status, actualTransactionId = current.actualTransactionId))
+        }
+        onChanged()
     }
 
     suspend fun deletePlannedExpense(item: PlannedExpenseEntity) {
         plannedExpenseDao.deletePlannedExpense(item)
+        onChanged()
     }
 
     suspend fun cancelPlannedExpense(id: Long) {
-        val existing = plannedExpenseDao.getPlannedExpenseById(id) ?: return
-        plannedExpenseDao.updatePlannedExpense(
-            existing.copy(
-                status = PlannedExpenseStatus.CANCELLED,
-                updatedAt = System.currentTimeMillis()
-            )
-        )
+        database.withTransaction {
+            val existing = plannedExpenseDao.getPlannedExpenseById(id) ?: return@withTransaction
+            if (existing.status == PlannedExpenseStatus.PLANNED) {
+                plannedExpenseDao.updatePlannedExpense(existing.copy(status = PlannedExpenseStatus.CANCELLED, updatedAt = System.currentTimeMillis()))
+            }
+        }
+        onChanged()
+    }
+
+    private suspend fun validate(item: PlannedExpenseEntity) {
+        require(database.categoryDao().getCategoryById(item.categoryId)?.transactionType == TransactionType.EXPENSE)
+        require(item.description.isNotBlank() && item.expectedAmount > 0 && item.plannedDate > 0)
+        require(item.recurrenceInterval in 1..120)
+        require(item.recurrence in listOf(null, "NONE", "WEEKLY", "MONTHLY", "YEARLY"))
+        require(item.reminderDays.split(',').all { it.toIntOrNull() in listOf(0, 1, 3, 7) })
+        require(item.recurrenceAnchorDay in 0..31)
     }
 
     /**
@@ -67,36 +91,34 @@ class PlannedExpenseRepository(
     suspend fun markAsPaid(
         plannedExpenseId: Long,
         paymentMethod: PaymentMethod = PaymentMethod.CASH,
-        timestamp: Long = System.currentTimeMillis()
+        timestamp: Long = System.currentTimeMillis(),
+        actualAmount: Long? = null
     ): Long? {
-        val existing = plannedExpenseDao.getPlannedExpenseById(plannedExpenseId) ?: return null
-
-        // Guard: Prevent duplicate actual transactions if already paid
-        if (existing.status == PlannedExpenseStatus.PAID && existing.actualTransactionId != null) {
-            return existing.actualTransactionId
+        val result = database.withTransaction {
+            val existing = plannedExpenseDao.getPlannedExpenseById(plannedExpenseId) ?: return@withTransaction null
+            if (existing.status == PlannedExpenseStatus.PAID) return@withTransaction existing.actualTransactionId
+            check(existing.status == PlannedExpenseStatus.PLANNED) { "Cancelled plans cannot be paid" }
+            validate(existing)
+            require(actualAmount == null || actualAmount > 0)
+            val transactionId = transactionDao.insertTransaction(TransactionEntity(
+                type = TransactionType.EXPENSE, amount = actualAmount ?: existing.expectedAmount,
+                categoryId = existing.categoryId, description = existing.description,
+                timestamp = timestamp, paymentMethod = paymentMethod, plannedExpenseId = existing.id,
+            ))
+            plannedExpenseDao.updatePlannedExpense(existing.copy(
+                status = PlannedExpenseStatus.PAID, actualTransactionId = transactionId,
+                updatedAt = System.currentTimeMillis(),
+            ))
+            Recurrence.next(existing)?.let { next ->
+                plannedExpenseDao.insertPlannedExpense(existing.copy(
+                    id = 0, plannedDate = next, actualTransactionId = null,
+                    recurrenceAnchorDay = Recurrence.anchorDay(existing),
+                    createdAt = System.currentTimeMillis(), updatedAt = System.currentTimeMillis(),
+                ))
+            }
+            transactionId
         }
-
-        // 1. Create real transaction
-        val actualTransaction = TransactionEntity(
-            type = TransactionType.EXPENSE,
-            amount = existing.expectedAmount,
-            categoryId = existing.categoryId,
-            description = existing.description,
-            timestamp = timestamp,
-            paymentMethod = paymentMethod,
-            createdAt = System.currentTimeMillis(),
-            updatedAt = System.currentTimeMillis()
-        )
-        val transactionId = transactionDao.insertTransaction(actualTransaction)
-
-        // 2. Mark planned expense as PAID and store reference to transaction
-        val updatedPlan = existing.copy(
-            status = PlannedExpenseStatus.PAID,
-            actualTransactionId = transactionId,
-            updatedAt = System.currentTimeMillis()
-        )
-        plannedExpenseDao.updatePlannedExpense(updatedPlan)
-
-        return transactionId
+        onChanged()
+        return result
     }
 }

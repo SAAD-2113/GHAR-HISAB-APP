@@ -1,5 +1,6 @@
 package com.sindantechnologies.gharhisab.data.local.room.entity
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 
@@ -21,5 +22,5 @@ data class BudgetEntity(
     val month: Int,
     val year: Int,
     val amount: Long, // Paisa
-    val warningThresholdPercent: Int = 80
+    @ColumnInfo(defaultValue = "80") val warningThresholdPercent: Int = 80
 )

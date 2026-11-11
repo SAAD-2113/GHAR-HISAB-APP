@@ -177,6 +177,7 @@ fun HomeScreen(
                 .padding(paddingValues)
                 .verticalScroll(rememberScrollState()),
         ) {
+            uiState.forecast?.let { FinancialInsightsCard(it) }
             // Quick Actions Bar
             LazyRow(
                 modifier = Modifier

@@ -13,10 +13,15 @@ android {
         applicationId = "com.sindantechnologies.gharhisab"
         minSdk = 29
         targetSdk = 34
-        versionCode = 3
-        versionName = "1.2.0"
+        versionCode = 4
+        versionName = "3.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    // Keep all supported languages available for the in-app language selector.
+    bundle {
+        language { enableSplit = false }
     }
 
     buildTypes {
@@ -43,13 +48,21 @@ android {
         compose = true
         buildConfig = true
     }
+
+    testOptions {
+        unitTests.isIncludeAndroidResources = true
+    }
 }
 
 dependencies {
+    implementation("com.google.android.gms:play-services-auth:21.6.0")
+
     // Core
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)
+    // Biometric 1.1 pulls Fragment 1.2, which cannot safely dispatch Activity Results.
+    implementation("androidx.fragment:fragment-ktx:1.6.2")
 
     // Compose
     implementation(platform(libs.androidx.compose.bom))
@@ -82,6 +95,14 @@ dependencies {
 
     // Unit Tests
     testImplementation("junit:junit:4.13.2")
+    testImplementation("org.json:json:20240303")
+    testImplementation("org.robolectric:robolectric:4.14.1")
+    testImplementation("androidx.test:core:1.6.1")
+    testImplementation("androidx.compose.ui:ui-test-junit4")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.1")
+
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
+    androidTestImplementation("androidx.test:runner:1.6.2")
 
     // Debug
     debugImplementation(libs.androidx.ui.tooling)

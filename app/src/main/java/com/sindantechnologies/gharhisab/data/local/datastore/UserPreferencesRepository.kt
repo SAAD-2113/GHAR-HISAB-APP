@@ -40,7 +40,56 @@ class UserPreferencesRepository(private val context: Context) {
         val APP_LOCK_MODE = stringPreferencesKey("app_lock_mode")
         val APP_LOCK_PIN_HASH = stringPreferencesKey("app_lock_pin_hash")
         val APP_LOCK_PIN_SALT = stringPreferencesKey("app_lock_pin_salt")
+        val ATTEMPTS = longPreferencesKey("lock_attempts")
+        val BLOCKED_UNTIL = longPreferencesKey("lock_blocked_until")
+        val BLOCKED_ELAPSED = longPreferencesKey("lock_blocked_elapsed")
+        val BLOCKED_BOOT = longPreferencesKey("lock_blocked_boot")
+        val RECOVERY_HASH = stringPreferencesKey("lock_recovery_hash")
         val APP_LOCK_TIMEOUT = longPreferencesKey("app_lock_timeout")
+    }
+
+    private val securityMutex = kotlinx.coroutines.sync.Mutex()
+    data class SecurityState(val mode: AppLockMode, val salt: String, val hash: String, val timeout: Long, val attempts: Long, val blockedUntil: Long)
+    val securityState = context.dataStore.data.map { p -> SecurityState(
+        AppLockMode.fromKey(p[Keys.APP_LOCK_MODE] ?: AppLockMode.OFF.key), p[Keys.APP_LOCK_PIN_SALT].orEmpty(),
+        p[Keys.APP_LOCK_PIN_HASH].orEmpty(), p[Keys.APP_LOCK_TIMEOUT] ?: 0, p[Keys.ATTEMPTS] ?: 0, p[Keys.BLOCKED_UNTIL] ?: 0,
+    ) }
+
+    suspend fun verifyAppPin(pin: String, recovery: Boolean = false): Boolean = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+        securityMutex.lock()
+        try {
+            var success = false
+            context.dataStore.edit { p ->
+                val now = System.currentTimeMillis()
+                val elapsed = android.os.SystemClock.elapsedRealtime()
+                val boot = android.provider.Settings.Global.getInt(context.contentResolver, android.provider.Settings.Global.BOOT_COUNT, 0).toLong()
+                val previousAttempts = p[Keys.ATTEMPTS] ?: 0
+                if (previousAttempts >= 5 && p[Keys.BLOCKED_BOOT] != boot) {
+                    p[Keys.BLOCKED_BOOT] = boot
+                    p[Keys.BLOCKED_ELAPSED] = elapsed + 30_000L
+                    return@edit
+                }
+                if (elapsed < (p[Keys.BLOCKED_ELAPSED] ?: 0)) return@edit
+                success = SecurityUtils.verifyPin(pin, p[Keys.APP_LOCK_PIN_SALT].orEmpty(),
+                    if (recovery) p[Keys.RECOVERY_HASH].orEmpty() else p[Keys.APP_LOCK_PIN_HASH].orEmpty())
+                if (success) {
+                    p[Keys.ATTEMPTS] = 0
+                    p[Keys.BLOCKED_UNTIL] = 0
+                    p[Keys.BLOCKED_ELAPSED] = 0
+                    if (recovery) { p[Keys.APP_LOCK_MODE] = AppLockMode.OFF.key; p.remove(Keys.RECOVERY_HASH); p.remove(Keys.APP_LOCK_PIN_HASH) }
+                } else {
+                    val attempts = (p[Keys.ATTEMPTS] ?: 0) + 1
+                    p[Keys.ATTEMPTS] = attempts
+                    if (attempts >= 5) {
+                        val delay = minOf(3_600_000L, 30_000L * (1L shl minOf(7, ((attempts - 5) / 5).toInt())))
+                        p[Keys.BLOCKED_UNTIL] = now + delay
+                        p[Keys.BLOCKED_ELAPSED] = elapsed + delay
+                        p[Keys.BLOCKED_BOOT] = boot
+                    }
+                }
+            }
+            success
+        } finally { securityMutex.unlock() }
     }
 
     // ── Read Flows ──
@@ -130,6 +179,15 @@ class UserPreferencesRepository(private val context: Context) {
         }
     }
 
+    suspend fun restoreFinancialPreferences(balance: Long, reserve: Long, language: String, theme: String) {
+        require(balance >= 0 && reserve >= 0)
+        context.dataStore.edit { p ->
+            p[Keys.STARTING_BALANCE] = balance; p[Keys.PROTECTED_RESERVE] = reserve
+            p[Keys.LANGUAGE] = Language.fromCode(language).code
+            p[Keys.THEME_MODE] = ThemeMode.fromKey(theme).key
+        }
+    }
+
     /** Persists starting balance in paisa. */
     suspend fun setStartingBalance(paisa: Long) {
         context.dataStore.edit { prefs ->
@@ -159,7 +217,9 @@ class UserPreferencesRepository(private val context: Context) {
     }
 
     /** Securely hashes and persists a new user PIN. */
-    suspend fun setAppLockPin(pin: String) {
+    suspend fun setAppLockPin(pin: String): String = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+        require(pin.length == 4 && pin.all { it in '0'..'9' })
+        val recovery = SecurityUtils.bytesToHex(SecurityUtils.generateSalt(16))
         val salt = SecurityUtils.generateSalt()
         val saltHex = SecurityUtils.bytesToHex(salt)
         val hashHex = SecurityUtils.hashPin(pin, salt)
@@ -167,7 +227,12 @@ class UserPreferencesRepository(private val context: Context) {
             prefs[Keys.APP_LOCK_PIN_SALT] = saltHex
             prefs[Keys.APP_LOCK_PIN_HASH] = hashHex
             prefs[Keys.APP_LOCK_MODE] = AppLockMode.PIN.key
+            prefs[Keys.RECOVERY_HASH] = SecurityUtils.hashPin(recovery, salt)
+            prefs[Keys.ATTEMPTS] = 0
+            prefs[Keys.BLOCKED_UNTIL] = 0
+            prefs[Keys.BLOCKED_ELAPSED] = 0
         }
+        recovery
     }
 
     /** Disables app lock and clears security credentials. */

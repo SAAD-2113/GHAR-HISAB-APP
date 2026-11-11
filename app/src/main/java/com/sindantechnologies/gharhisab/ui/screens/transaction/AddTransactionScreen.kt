@@ -6,16 +6,19 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -26,8 +29,6 @@ import androidx.compose.material.icons.automirrored.filled.TrendingDown
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -52,21 +53,18 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
+import androidx.compose.ui.res.stringResource
+import com.sindantechnologies.gharhisab.R
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.sindantechnologies.gharhisab.data.local.room.entity.CategoryEntity
 import com.sindantechnologies.gharhisab.domain.model.PaymentMethod
 import com.sindantechnologies.gharhisab.domain.model.TransactionType
 import com.sindantechnologies.gharhisab.ui.theme.Dimens
 import com.sindantechnologies.gharhisab.ui.theme.ExpenseRed
 import com.sindantechnologies.gharhisab.ui.theme.IncomeGreen
 import com.sindantechnologies.gharhisab.util.Constants
-import com.sindantechnologies.gharhisab.util.IconMapper
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -78,6 +76,10 @@ fun AddTransactionScreen(
     onNavigateBack: () -> Unit,
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val scrollState = rememberScrollState()
+    LaunchedEffect(uiState.saveFailed) {
+        if (uiState.saveFailed) scrollState.animateScrollTo(0)
+    }
     var showDatePicker by remember { mutableStateOf(false) }
 
     LaunchedEffect(uiState.isSaved) {
@@ -95,12 +97,12 @@ fun AddTransactionScreen(
                     datePickerState.selectedDateMillis?.let { viewModel.onDateChanged(it) }
                     showDatePicker = false
                 }) {
-                    Text("OK")
+                    Text(stringResource(R.string.action_ok))
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showDatePicker = false }) {
-                    Text("Cancel")
+                    Text(stringResource(R.string.action_cancel))
                 }
             }
         ) {
@@ -109,12 +111,13 @@ fun AddTransactionScreen(
     }
 
     Scaffold(
+        modifier = Modifier.fillMaxSize().imePadding(),
         topBar = {
             TopAppBar(
-                title = { Text("Add Transaction") },
+                title = { Text(stringResource(R.string.transaction_add)) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back))
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -132,20 +135,19 @@ fun AddTransactionScreen(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .navigationBarsPadding()
-                        .imePadding()
+                        .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom))
                         .padding(horizontal = Dimens.SpacingLg, vertical = Dimens.SpacingMd)
                 ) {
                     Button(
                         onClick = { viewModel.saveTransaction() },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(Dimens.ButtonHeight),
+                            .heightIn(min = Dimens.ButtonHeight),
                         enabled = !uiState.isSaving,
                         shape = RoundedCornerShape(Dimens.RadiusMd)
                     ) {
                         Text(
-                            text = if (uiState.isSaving) "Saving..." else "Save Transaction",
+                            text = stringResource(if (uiState.isSaving) R.string.transaction_saving else R.string.transaction_save),
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold
                         )
@@ -159,9 +161,16 @@ fun AddTransactionScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .verticalScroll(rememberScrollState())
-                .imePadding()
+                .consumeWindowInsets(paddingValues)
+                .verticalScroll(scrollState)
         ) {
+            if (uiState.saveFailed) {
+                Text(
+                    stringResource(R.string.transaction_save_failed),
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.padding(Dimens.SpacingLg),
+                )
+            }
             // Type Segmented Button with clear Income vs Expense badges
             SingleChoiceSegmentedButtonRow(
                 modifier = Modifier
@@ -180,7 +189,7 @@ fun AddTransactionScreen(
                         )
                     }
                 ) {
-                    Text("Expense", fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.home_expense), fontWeight = FontWeight.Bold)
                 }
                 SegmentedButton(
                     selected = uiState.transactionType == TransactionType.INCOME,
@@ -194,7 +203,7 @@ fun AddTransactionScreen(
                         )
                     }
                 ) {
-                    Text("Income", fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.home_income), fontWeight = FontWeight.Bold)
                 }
             }
 
@@ -207,7 +216,7 @@ fun AddTransactionScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = Dimens.SpacingLg),
-                label = { Text("Amount") },
+                label = { Text(stringResource(R.string.transaction_amount)) },
                 prefix = { Text("${Constants.CURRENCY_SYMBOL} ") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 isError = uiState.amountError != null,
@@ -227,7 +236,7 @@ fun AddTransactionScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = Dimens.SpacingLg),
-                label = { Text("Description (Optional)") },
+                label = { Text(stringResource(R.string.transaction_description)) },
                 singleLine = true,
             )
 
@@ -241,7 +250,7 @@ fun AddTransactionScreen(
                     .fillMaxWidth()
                     .padding(horizontal = Dimens.SpacingLg)
                     .clickable { showDatePicker = true },
-                label = { Text("Date") },
+                label = { Text(stringResource(R.string.transaction_date)) },
                 readOnly = true,
                 enabled = false,
                 colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
@@ -251,7 +260,7 @@ fun AddTransactionScreen(
                     disabledTrailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
                 ),
                 trailingIcon = {
-                    Icon(Icons.Filled.CalendarToday, contentDescription = "Select Date")
+                    Icon(Icons.Filled.CalendarToday, contentDescription = stringResource(R.string.transaction_select_date))
                 }
             )
 
@@ -259,7 +268,7 @@ fun AddTransactionScreen(
 
             // Payment Method - Responsive FlowRow Chips
             Text(
-                text = "Payment Method",
+                text = stringResource(R.string.transaction_payment_method),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.padding(horizontal = Dimens.SpacingLg)
@@ -276,7 +285,7 @@ fun AddTransactionScreen(
                     FilterChip(
                         selected = uiState.selectedPaymentMethod == method,
                         onClick = { viewModel.onPaymentMethodSelected(method) },
-                        label = { Text(method.name.lowercase().replaceFirstChar { it.uppercase() }) }
+                        label = { Text(stringResource(paymentMethodLabel(method))) }
                     )
                 }
             }
@@ -285,7 +294,7 @@ fun AddTransactionScreen(
 
             // Category Selection
             Text(
-                text = "Category",
+                text = stringResource(R.string.transaction_category),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
                 color = if (uiState.categoryError != null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onBackground,
@@ -301,70 +310,13 @@ fun AddTransactionScreen(
             }
             Spacer(modifier = Modifier.height(Dimens.SpacingSm))
 
-            // Chunked rows of 4 for natural responsive scrolling
-            uiState.categories.chunked(4).forEach { rowCategories ->
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = Dimens.SpacingMd, vertical = Dimens.SpacingXs),
-                    horizontalArrangement = Arrangement.SpaceEvenly
-                ) {
-                    rowCategories.forEach { category ->
-                        CategoryItem(
-                            category = category,
-                            isSelected = uiState.selectedCategory?.id == category.id,
-                            onClick = { viewModel.onCategorySelected(category) },
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-                    repeat(4 - rowCategories.size) {
-                        Spacer(modifier = Modifier.weight(1f))
-                    }
-                }
-            }
+            TransactionCategories(
+                categories = uiState.categories,
+                selectedId = uiState.selectedCategory?.id,
+                onSelect = viewModel::onCategorySelected,
+            )
 
             Spacer(modifier = Modifier.height(Dimens.SpacingHuge))
         }
-    }
-}
-
-@Composable
-private fun CategoryItem(
-    category: CategoryEntity,
-    isSelected: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Column(
-        modifier = modifier
-            .padding(Dimens.SpacingXs)
-            .clickable(onClick = onClick),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Card(
-            shape = RoundedCornerShape(Dimens.RadiusMd),
-            colors = CardDefaults.cardColors(
-                containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
-            ),
-            elevation = CardDefaults.cardElevation(defaultElevation = if (isSelected) Dimens.ElevationMd else Dimens.ElevationNone),
-            modifier = Modifier.size(52.dp)
-        ) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Icon(
-                    imageVector = IconMapper.getIcon(category.iconKey),
-                    contentDescription = category.name,
-                    tint = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-        Spacer(modifier = Modifier.height(Dimens.SpacingXs))
-        Text(
-            text = category.name,
-            style = MaterialTheme.typography.labelSmall,
-            color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
-            maxLines = 1,
-            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-        )
     }
 }

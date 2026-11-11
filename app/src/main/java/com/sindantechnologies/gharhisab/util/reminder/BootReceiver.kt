@@ -15,6 +15,7 @@ class BootReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != Intent.ACTION_BOOT_COMPLETED &&
+            intent.action != Intent.ACTION_TIME_CHANGED && intent.action != Intent.ACTION_TIMEZONE_CHANGED &&
             intent.action != Intent.ACTION_MY_PACKAGE_REPLACED
         ) {
             return
@@ -27,9 +28,7 @@ class BootReceiver : BroadcastReceiver() {
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 val activeExpenses = repository.getActivePlannedExpensesList()
-                activeExpenses.forEach { expense ->
-                    ReminderScheduler.scheduleReminders(context, expense)
-                }
+                ReminderScheduler.reconcile(context, activeExpenses)
             } finally {
                 pendingResult.finish()
             }

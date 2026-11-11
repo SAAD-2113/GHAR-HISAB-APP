@@ -1,5 +1,6 @@
 package com.sindantechnologies.gharhisab.data.local.room.entity
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
@@ -29,5 +30,6 @@ data class TransactionEntity(
     val timestamp: Long, // Stored as Unix timestamp in milliseconds
     val paymentMethod: PaymentMethod?,
     val createdAt: Long = System.currentTimeMillis(),
-    val updatedAt: Long = System.currentTimeMillis()
+    val updatedAt: Long = System.currentTimeMillis(),
+    @ColumnInfo(defaultValue = "NULL") val plannedExpenseId: Long? = null
 )

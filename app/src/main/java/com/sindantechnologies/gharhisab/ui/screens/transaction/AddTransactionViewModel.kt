@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.CancellationException
 
 data class AddTransactionUiState(
     val transactionType: TransactionType = TransactionType.EXPENSE,
@@ -27,6 +28,7 @@ data class AddTransactionUiState(
     val amountError: String? = null,
     val categoryError: String? = null,
     val isSaving: Boolean = false,
+    val saveFailed: Boolean = false,
     val isSaved: Boolean = false,
 )
 
@@ -38,13 +40,16 @@ class AddTransactionViewModel(
     private val _uiState = MutableStateFlow(AddTransactionUiState())
     val uiState: StateFlow<AddTransactionUiState> = _uiState.asStateFlow()
 
+    private var allCategories: List<CategoryEntity> = emptyList()
+
     init {
         loadCategories()
     }
 
     private fun loadCategories() {
         viewModelScope.launch {
-            categoryRepository.getActiveCategories().collect { allCategories ->
+            categoryRepository.getActiveCategories().collect { categories ->
+                allCategories = categories
                 val filteredCategories = allCategories.filter {
                     it.transactionType == _uiState.value.transactionType
                 }
@@ -59,9 +64,9 @@ class AddTransactionViewModel(
                 transactionType = type,
                 selectedCategory = null,
                 categoryError = null,
+                categories = allCategories.filter { category -> category.transactionType == type },
             )
         }
-        loadCategories()
     }
 
     fun onAmountChanged(amount: String) {
@@ -94,6 +99,7 @@ class AddTransactionViewModel(
 
     fun saveTransaction() {
         val state = _uiState.value
+        if (state.isSaving || state.isSaved) return
         var hasError = false
 
         val amountInPaisa = CurrencyFormatter.parseRupeesToPaisa(state.amountText)
@@ -109,7 +115,7 @@ class AddTransactionViewModel(
 
         if (hasError) return
 
-        _uiState.update { it.copy(isSaving = true) }
+        _uiState.update { it.copy(isSaving = true, saveFailed = false) }
 
         viewModelScope.launch {
             val transaction = TransactionEntity(
@@ -120,8 +126,14 @@ class AddTransactionViewModel(
                 timestamp = state.timestamp,
                 paymentMethod = state.selectedPaymentMethod,
             )
-            transactionRepository.insertTransaction(transaction)
-            _uiState.update { it.copy(isSaving = false, isSaved = true) }
+            try {
+                transactionRepository.insertTransaction(transaction)
+                _uiState.update { it.copy(isSaving = false, isSaved = true) }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                _uiState.update { it.copy(isSaving = false, saveFailed = true) }
+            }
         }
     }
 
