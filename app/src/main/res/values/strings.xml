@@ -30,7 +30,7 @@
     <string name="storage_google_drive_title">Google Drive Backup</string>
     <string name="storage_coming_soon_badge">Coming Soon</string>
     <string name="storage_coming_soon_title">Coming Soon</string>
-    <string name="storage_coming_soon_message">Google Drive backup will be available in a future update.\n\nFor now, your financial data will be securely stored on your device using encrypted local storage.</string>
+    <string name="storage_coming_soon_message">Google Drive backup will be available in a future update.\n\nFor now, your financial data is stored in private app storage on this device. App lock does not encrypt the database.</string>
     <string name="storage_continue_local">Continue with Local Storage</string>
     <string name="storage_cancel">Cancel</string>
 
@@ -78,4 +78,29 @@
     <!-- Transactions -->
     <string name="home_view_all">View All</string>
     <string name="transaction_no_description">No description</string>
+
+    <!-- Transaction forms -->
+    <string name="transaction_add">Add Transaction</string>
+    <string name="transaction_edit">Edit Transaction</string>
+    <string name="action_back">Back</string>
+    <string name="action_ok">OK</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="transaction_amount">Amount</string>
+    <string name="transaction_description">Description (Optional)</string>
+    <string name="transaction_date">Date</string>
+    <string name="transaction_select_date">Select Date</string>
+    <string name="transaction_payment_method">Payment Method</string>
+    <string name="transaction_category">Category</string>
+    <string name="transaction_delete">Delete Transaction</string>
+    <string name="transaction_delete_confirm">Delete this transaction? This cannot be undone.</string>
+    <string name="action_delete">Delete</string>
+    <string name="transaction_save">Save Transaction</string>
+    <string name="transaction_update">Update Transaction</string>
+    <string name="transaction_saving">Saving…</string>
+    <string name="transaction_save_failed">Could not save changes. Your form is still here; please try again.</string>
+    <string name="payment_cash">Cash</string>
+    <string name="payment_bank">Bank</string>
+    <string name="payment_card">Card</string>
+    <string name="payment_mobile_wallet">Mobile wallet</string>
+    <string name="payment_other">Other</string>
 </resources>

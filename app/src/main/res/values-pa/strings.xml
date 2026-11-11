@@ -1,6 +1,92 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Punjabi translations - placeholder for future implementation -->
-<!-- When implementing, translate all strings from values/strings.xml -->
+<!-- Punjabi (Gurmukhi) resources, matching the existing language selector. -->
 <resources>
     <string name="app_name">ਘਰ ਹਿਸਾਬ</string>
+
+    <!-- Transaction forms -->
+    <string name="transaction_add">ਲੈਣ-ਦੇਣ ਜੋੜੋ</string>
+    <string name="transaction_edit">ਲੈਣ-ਦੇਣ ਸੋਧੋ</string>
+    <string name="action_back">ਵਾਪਸ</string>
+    <string name="action_ok">ਠੀਕ ਹੈ</string>
+    <string name="action_cancel">ਰੱਦ ਕਰੋ</string>
+    <string name="transaction_amount">ਰਕਮ</string>
+    <string name="transaction_description">ਵੇਰਵਾ (ਵਿਕਲਪਿਕ)</string>
+    <string name="transaction_date">ਤਾਰੀਖ</string>
+    <string name="transaction_select_date">ਤਾਰੀਖ ਚੁਣੋ</string>
+    <string name="transaction_payment_method">ਭੁਗਤਾਨ ਦਾ ਤਰੀਕਾ</string>
+    <string name="transaction_category">ਸ਼੍ਰੇਣੀ</string>
+    <string name="transaction_delete">ਲੈਣ-ਦੇਣ ਮਿਟਾਓ</string>
+    <string name="transaction_delete_confirm">ਕੀ ਇਹ ਲੈਣ-ਦੇਣ ਮਿਟਾਉਣਾ ਹੈ? ਇਸ ਨੂੰ ਵਾਪਸ ਨਹੀਂ ਲਿਆ ਜਾ ਸਕੇਗਾ।</string>
+    <string name="action_delete">ਮਿਟਾਓ</string>
+    <string name="transaction_save">ਲੈਣ-ਦੇਣ ਸੰਭਾਲੋ</string>
+    <string name="transaction_update">ਤਬਦੀਲੀਆਂ ਸੰਭਾਲੋ</string>
+    <string name="transaction_saving">ਸੰਭਾਲਿਆ ਜਾ ਰਿਹਾ ਹੈ…</string>
+    <string name="transaction_save_failed">ਤਬਦੀਲੀਆਂ ਸੰਭਾਲੀਆਂ ਨਹੀਂ ਜਾ ਸਕੀਆਂ। ਫਾਰਮ ਮੌਜੂਦ ਹੈ; ਮੁੜ ਕੋਸ਼ਿਸ਼ ਕਰੋ।</string>
+    <string name="payment_cash">ਨਕਦ</string>
+    <string name="payment_bank">ਬੈਂਕ</string>
+    <string name="payment_card">ਕਾਰਡ</string>
+    <string name="payment_mobile_wallet">ਮੋਬਾਈਲ ਵਾਲਿਟ</string>
+    <string name="payment_other">ਹੋਰ</string>
+    <string name="home_income">ਆਮਦਨ</string>
+    <string name="home_expense">ਖਰਚਾ</string>
+    <string name="splash_app_name">ਘਰ ਹਿਸਾਬ</string>
+    <string name="splash_product_of">ਦੀ ਪੇਸ਼ਕਸ਼</string>
+    <string name="splash_company_name">ਸਿੰਦਾਨ ਟੈਕਨੋਲੋਜੀਜ਼</string>
+    <string name="splash_logo_description">ਘਰ ਹਿਸਾਬ ਦਾ ਲੋਗੋ</string>
+    <string name="splash_company_logo_description">ਸਿੰਦਾਨ ਟੈਕਨੋਲੋਜੀਜ਼ ਦਾ ਲੋਗੋ</string>
+    <string name="language_selection_title">ਆਪਣੀ ਭਾਸ਼ਾ ਚੁਣੋ</string>
+    <string name="language_english">English</string>
+    <string name="language_urdu">اردو</string>
+    <string name="language_punjabi">ਪੰਜਾਬੀ</string>
+    <string name="theme_selection_title">ਥੀਮ ਚੁਣੋ</string>
+    <string name="theme_classic">ਕਲਾਸਿਕ</string>
+    <string name="theme_midnight">ਮਿਡਨਾਈਟ</string>
+    <string name="theme_follow_system">ਸਿਸਟਮ ਅਨੁਸਾਰ</string>
+    <string name="storage_selection_title">ਡਾਟਾ ਸੰਭਾਲਣ ਦੀ ਥਾਂ ਚੁਣੋ</string>
+    <string name="storage_local_title">ਸਥਾਨਕ ਸਟੋਰੇਜ</string>
+    <string name="storage_local_works_offline">ਇੰਟਰਨੈੱਟ ਤੋਂ ਬਿਨਾਂ ਕੰਮ ਕਰਦਾ ਹੈ</string>
+    <string name="storage_local_faster">ਤੇਜ਼</string>
+    <string name="storage_local_secure">ਨਿੱਜੀ</string>
+    <string name="storage_local_recommended">ਸਿਫ਼ਾਰਸ਼ ਕੀਤਾ</string>
+    <string name="storage_google_drive_title">ਗੂਗਲ ਡਰਾਈਵ ਬੈਕਅੱਪ</string>
+    <string name="storage_coming_soon_badge">ਜਲਦੀ ਆ ਰਿਹਾ ਹੈ</string>
+    <string name="storage_coming_soon_title">ਜਲਦੀ ਆ ਰਿਹਾ ਹੈ</string>
+    <string name="storage_coming_soon_message">ਗੂਗਲ ਡਰਾਈਵ ਬੈਕਅੱਪ ਹਾਲੇ ਉਪਲਬਧ ਨਹੀਂ ਹੈ। ਫਿਲਹਾਲ ਤੁਹਾਡਾ ਵਿੱਤੀ ਡਾਟਾ ਇਸ ਡਿਵਾਈਸ ਉੱਤੇ ਐਪ ਦੀ ਨਿੱਜੀ ਸਟੋਰੇਜ ਵਿੱਚ ਸੰਭਾਲਿਆ ਜਾਂਦਾ ਹੈ। ਐਪ ਲਾਕ ਡਾਟਾਬੇਸ ਨੂੰ ਇਨਕ੍ਰਿਪਟ ਨਹੀਂ ਕਰਦਾ।</string>
+    <string name="storage_continue_local">ਸਥਾਨਕ ਸਟੋਰੇਜ ਨਾਲ ਜਾਰੀ ਰੱਖੋ</string>
+    <string name="storage_cancel">ਰੱਦ ਕਰੋ</string>
+    <string name="home_title">ਘਰ ਹਿਸਾਬ</string>
+    <string name="home_welcome">ਜੀ ਆਇਆਂ ਨੂੰ!</string>
+    <string name="home_subtitle">ਆਪਣੇ ਘਰ ਦੇ ਵਿੱਤੀ ਮਾਮਲੇ ਸੰਭਾਲੋ</string>
+    <string name="home_balance">ਬਕਾਇਆ ਰਕਮ</string>
+    <string name="home_recent_transactions">ਹਾਲੀਆ ਲੈਣ-ਦੇਣ</string>
+    <string name="home_no_transactions">ਹਾਲੇ ਕੋਈ ਲੈਣ-ਦੇਣ ਨਹੀਂ</string>
+    <string name="home_no_transactions_hint">ਇੱਥੇ ਵੇਖਣ ਲਈ ਆਪਣੇ ਖਰਚੇ ਦਰਜ ਕਰੋ।</string>
+    <string name="home_add_transaction">ਲੈਣ-ਦੇਣ ਜੋੜੋ</string>
+    <string name="home_coming_soon">ਆਉਣ ਵਾਲੀ ਅੱਪਡੇਟ ਵਿੱਚ ਉਪਲਬਧ ਹੋਵੇਗਾ</string>
+    <string name="settings_title">ਸੈਟਿੰਗਾਂ</string>
+    <string name="settings_general">ਆਮ</string>
+    <string name="settings_language">ਭਾਸ਼ਾ</string>
+    <string name="settings_theme">ਥੀਮ</string>
+    <string name="settings_currency">ਮੁਦਰਾ</string>
+    <string name="settings_currency_value">PKR</string>
+    <string name="settings_security">ਸੁਰੱਖਿਆ</string>
+    <string name="settings_app_lock">ਐਪ ਲਾਕ</string>
+    <string name="settings_biometric">ਬਾਇਓਮੈਟ੍ਰਿਕ</string>
+    <string name="settings_off">ਬੰਦ</string>
+    <string name="settings_data">ਡਾਟਾ</string>
+    <string name="settings_storage">ਸਟੋਰੇਜ</string>
+    <string name="settings_local">ਸਥਾਨਕ</string>
+    <string name="settings_backup">ਬੈਕਅੱਪ</string>
+    <string name="settings_export_data">ਡਾਟਾ ਨਿਰਯਾਤ ਕਰੋ</string>
+    <string name="settings_about">ਜਾਣਕਾਰੀ</string>
+    <string name="settings_version">ਵਰਜਨ</string>
+    <string name="settings_privacy_policy">ਪਰਦੇਦਾਰੀ ਨੀਤੀ</string>
+    <string name="settings_terms_of_service">ਵਰਤੋਂ ਦੀਆਂ ਸ਼ਰਤਾਂ</string>
+    <string name="settings_rate_app">ਐਪ ਨੂੰ ਰੇਟ ਕਰੋ</string>
+    <string name="settings_coming_soon">ਆਉਣ ਵਾਲੀ ਅੱਪਡੇਟ ਵਿੱਚ ਉਪਲਬਧ ਹੋਵੇਗਾ</string>
+    <string name="continue_button">ਜਾਰੀ ਰੱਖੋ</string>
+    <string name="rupee_symbol">₨</string>
+    <string name="zero_amount">₨ 0</string>
+    <string name="home_view_all">ਸਾਰੇ ਵੇਖੋ</string>
+    <string name="transaction_no_description">ਕੋਈ ਵੇਰਵਾ ਨਹੀਂ</string>
 </resources>

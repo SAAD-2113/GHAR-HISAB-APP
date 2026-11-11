@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.CancellationException
 
 data class EditTransactionUiState(
     val transactionId: Long = 0L,
@@ -28,6 +29,7 @@ data class EditTransactionUiState(
     val amountError: String? = null,
     val categoryError: String? = null,
     val isSaving: Boolean = false,
+    val saveFailed: Boolean = false,
     val isSaved: Boolean = false,
     val isDeleted: Boolean = false,
     val isLoading: Boolean = true,
@@ -122,6 +124,7 @@ class EditTransactionViewModel(
 
     fun saveTransaction() {
         val state = _uiState.value
+        if (state.isSaving || state.isSaved) return
         val original = originalTransaction ?: return
         
         var hasError = false
@@ -139,7 +142,7 @@ class EditTransactionViewModel(
 
         if (hasError) return
 
-        _uiState.update { it.copy(isSaving = true) }
+        _uiState.update { it.copy(isSaving = true, saveFailed = false) }
 
         viewModelScope.launch {
             val transaction = original.copy(
@@ -151,17 +154,30 @@ class EditTransactionViewModel(
                 paymentMethod = state.selectedPaymentMethod,
                 updatedAt = System.currentTimeMillis()
             )
-            transactionRepository.updateTransaction(transaction)
-            _uiState.update { it.copy(isSaving = false, isSaved = true) }
+            try {
+                transactionRepository.updateTransaction(transaction)
+                _uiState.update { it.copy(isSaving = false, isSaved = true) }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                _uiState.update { it.copy(isSaving = false, saveFailed = true) }
+            }
         }
     }
     
     fun deleteTransaction() {
         val original = originalTransaction ?: return
+        if (_uiState.value.isSaving || _uiState.value.isDeleted) return
+        _uiState.update { it.copy(isSaving = true, saveFailed = false) }
         viewModelScope.launch {
-            _uiState.update { it.copy(isSaving = true) }
-            transactionRepository.deleteTransaction(original)
-            _uiState.update { it.copy(isSaving = false, isDeleted = true) }
+            try {
+                transactionRepository.deleteTransaction(original)
+                _uiState.update { it.copy(isSaving = false, isDeleted = true) }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                _uiState.update { it.copy(isSaving = false, saveFailed = true) }
+            }
         }
     }
 
