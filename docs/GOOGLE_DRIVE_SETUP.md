@@ -1,6 +1,6 @@
 # Google Drive setup and device migration
 
-Version 3 uses Google Identity Services `AuthorizationClient` and the Drive REST API. The Google Cloud project is **not configured yet**. Offline transactions, app lock, forecasts and encrypted local backup do not require Google Cloud. Live Google authorization and cross-device restoration still need the setup and device checks below.
+Version 3 uses Google Identity Services `AuthorizationClient` and the Drive REST API. The owner reports that the Google Cloud project, Drive API, consent screen, Android OAuth client, package, SHA-1 certificate and `drive.appdata` scope are **configured**. This environment has not independently verified a phone authorization session. Offline transactions, app lock, forecasts and encrypted local backup do not require Google Cloud. Live Google authorization and cross-device restoration still need the setup and device checks below.
 
 ## Configure the project
 
@@ -51,4 +51,4 @@ The Google account grants access to encrypted bytes; it cannot recover a forgott
 - Invalid password, corrupted or incompatible file: restore stops before mutation. Obtain the correct password or a different snapshot.
 - Test consent cancellation, denied permission, offline upload/download, revoked access, corrupted ciphertext and stale restore previews. Verify real Android Keystore behavior and second-device restoration before production release.
 
-The cloud environment built the integration and tested portable encryption/restore logic, but has no configured Google Cloud project, Android device or Google authorization session. It has **not** verified a real Drive upload/download or device-to-device recovery.
+The cloud environment built the integration and tested portable encryption/restore logic. The owner has completed Google Cloud configuration, but this environment has no attached Android device or Google authorization session. It has **not** verified a real Drive upload/download or device-to-device recovery.

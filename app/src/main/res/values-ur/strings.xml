@@ -166,4 +166,22 @@
     <string name="insights_notification_message">خرچ کا اندازہ بدل گیا۔ نجی جائزے کے لیے گھر حساب کھولیں۔</string>
     <string name="backup_exported">خفیہ بیک اپ کامیابی سے برآمد ہوا۔</string>
     <string name="reminder_schedule_failed">آپ کا منصوبہ محفوظ ہے، لیکن اینڈرائیڈ تمام یاد دہانیاں مقرر نہیں کر سکا۔ دوبارہ کوشش کے لیے ایپ کھولیں اور اطلاع کی ترتیبات دیکھیں۔</string>
+    <string name="drive_authorization_failed">گوگل کی اجازت حاصل نہیں ہو سکی۔ دوبارہ رابطہ کریں؛ مسئلہ حل کرتے وقت نیچے دیا گیا کوڈ استعمال کریں۔</string>
+    <string name="drive_http_failed">ڈرائیو نے درخواست مسترد کر دی۔ اکاؤنٹ کی رسائی دیکھیں یا بعد میں کوشش کریں۔</string>
+    <string name="backup_file_too_large">یہ بیک اپ مقررہ حجم سے بڑا ہے۔ کوئی دوسرا بیک اپ منتخب کریں۔</string>
+    <string name="backup_decryption_failed">پاس ورڈ غلط ہے یا خفیہ فائل خراب ہے۔ کوئی ریکارڈ بحال نہیں ہوا۔</string>
+    <string name="backup_invalid">بیک اپ کی ساخت یا مالی اعداد غلط ہیں یا قابل قبول نہیں۔ کوئی ریکارڈ بحال نہیں ہوا۔</string>
+    <string name="backup_preview_stale">مقامی ڈیٹا بدل گیا ہے۔ یہ پیش منظر بند کریں اور بحالی سے پہلے دوبارہ پیش منظر دیکھیں۔</string>
+    <string name="drive_upload_unconfirmed">اپ لوڈ کی تصدیق نہیں ہو سکی۔ نقل سے بچنے کے لیے دوبارہ کوشش سے پہلے بیک اپ فہرست تازہ کریں۔</string>
+    <string name="drive_network_failed">ڈرائیو تک رسائی نہیں ہو سکی۔ انٹرنیٹ دیکھیں اور دوبارہ کوشش کریں۔</string>
+    <string name="backup_creation_failed">خفیہ بیک اپ نہیں بن سکا۔ مقامی مالی اعداد اور دستیاب جگہ دیکھیں۔</string>
+    <string name="drive_listing_failed">بیک اپ فہرست تازہ نہیں ہو سکی۔ دوبارہ تازہ کریں؛ تصدیق شدہ اپ لوڈ کامیاب ہے۔</string>
+    <string name="drive_download_failed">یہ بیک اپ ڈاؤن لوڈ نہیں ہو سکا۔ فہرست تازہ کر کے دوبارہ کوشش کریں۔</string>
+    <string name="backup_restore_failed">بحالی مکمل نہیں ہوئی۔ جگہ دیکھ کر دوبارہ کوشش کریں۔ اگر بحالی رکی ہو تو ڈیٹا مٹائے بغیر ایپ دوبارہ کھولیں۔</string>
+    <string name="drive_refreshing">بیک اپ فہرست تازہ ہو رہی ہے…</string>
+    <string name="drive_uploading">خفیہ بیک اپ تیار اور اپ لوڈ ہو رہا ہے…</string>
+    <string name="drive_downloading">بیک اپ ڈاؤن لوڈ اور جانچ ہو رہی ہے…</string>
+    <string name="backup_restoring">بیک اپ بحال ہو رہا ہے…</string>
+    <string name="backup_error_code">خرابی کا کوڈ: %1$d</string>
+    <string name="backup_operation_stopped">عمل رک گیا ہے۔ تفصیل نیچے دیکھیں۔</string>
 </resources>

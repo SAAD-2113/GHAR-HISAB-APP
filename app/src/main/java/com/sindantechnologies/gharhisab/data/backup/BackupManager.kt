@@ -20,7 +20,10 @@ class BackupManager(
     private val preferences: UserPreferencesRepository,
     private val context: Context,
     private val vault: SafetyVault = KeystoreSafetyVault(context),
-) {
+) : BackupOperations {
+    class InvalidBackup : IllegalArgumentException()
+    class DecryptionFailed : IllegalArgumentException()
+    class StalePreview : IllegalStateException()
     companion object { const val MAX_BYTES = 16 * 1024 * 1024 }
     data class Preview(val payload: BackupPayload, internal val localFingerprint: String)
     private val mutex = Mutex()
@@ -34,7 +37,7 @@ class BackupManager(
             budgets = database.budgetDao().getAllBudgetsList(), plannedExpenses = database.plannedExpenseDao().getAllPlannedExpensesList())
     }
     private fun fingerprint(payload: BackupPayload) = SecurityUtils.bytesToHex(MessageDigest.getInstance("SHA-256").digest(payload.toJsonString().toByteArray()))
-    suspend fun createEncryptedBackupBytes(password: String): ByteArray = withContext(Dispatchers.IO) {
+    override suspend fun createEncryptedBackupBytes(password: String): ByteArray = withContext(Dispatchers.IO) {
         require(password.length >= 12) { "Use a recovery password with at least 12 characters" }
         val payload = snapshot().copy(createdAtMillis = System.currentTimeMillis())
         payload.validate()
@@ -42,9 +45,15 @@ class BackupManager(
         require(data.size <= MAX_BYTES - 64)
         SecurityUtils.encryptAesGcm(data, password)
     }
-    suspend fun preview(bytes: ByteArray, password: String): Preview = withContext(Dispatchers.IO) {
-        require(bytes.size <= MAX_BYTES)
-        val payload = BackupPayload.fromJsonString(String(SecurityUtils.decryptAesGcm(bytes, password), Charsets.UTF_8))
+    override suspend fun preview(bytes: ByteArray, password: String): Preview = withContext(Dispatchers.IO) {
+        if (bytes.size > MAX_BYTES) throw InvalidBackup()
+        val decrypted = try { SecurityUtils.decryptAesGcm(bytes, password) }
+        catch (_: java.security.GeneralSecurityException) { throw DecryptionFailed() }
+        catch (_: IllegalArgumentException) { throw DecryptionFailed() }
+        val payload = try { BackupPayload.fromJsonString(String(decrypted, Charsets.UTF_8)) }
+        catch (_: IllegalArgumentException) { throw InvalidBackup() }
+        catch (_: ArithmeticException) { throw InvalidBackup() }
+        catch (_: org.json.JSONException) { throw InvalidBackup() }
         Preview(payload, fingerprint(snapshot()))
     }
     private suspend fun apply(payload: BackupPayload) {
@@ -68,9 +77,10 @@ class BackupManager(
                 apply(BackupPayload.fromJsonString(String(it, Charsets.UTF_8)))
                 vault.complete()
             }
+            recoveryBlockedState.value = false
         }
     }
-    suspend fun restore(preview: Preview): Int = withContext(Dispatchers.IO) {
+    override suspend fun restore(preview: Preview): Int = withContext(Dispatchers.IO) {
         mutex.withLock {
             withContext(NonCancellable) {
                 check(!recoveryBlockedState.value) { "Restart to recover the interrupted restore" }
@@ -78,7 +88,8 @@ class BackupManager(
                 try {
                     database.withTransaction {
                         val current = snapshot()
-                        check(fingerprint(current) == preview.localFingerprint) { "Local data changed; preview again before replacing it" }
+                        if (fingerprint(current) != preview.localFingerprint) throw StalePreview()
+                        current.validate() // The rollback archive must also be readable before replacing anything.
                         vault.writePending(current.toJsonString().toByteArray())
                         before = current
                         apply(preview.payload)

@@ -112,6 +112,8 @@ data class BackupPayload(
     fun validate() {
         fun ids(values: List<Long>) { require(values.all { it > 0 } && values.size == values.toSet().size) }
         ids(categories.map { it.id }); ids(transactions.map { it.id }); ids(budgets.map { it.id }); ids(plannedExpenses.map { it.id })
+        require(backupVersion in 1..2 && createdAtMillis > 0)
+        require(listOf(categories.size, transactions.size, budgets.size, plannedExpenses.size).all { it <= 100000 })
         require(startingBalancePaisa >= 0 && protectedReservePaisa >= 0)
         val cats = categories.associateBy { it.id }
         require(transactions.all { it.amount > 0 && it.timestamp > 0 && cats[it.categoryId]?.transactionType == it.type })
@@ -122,10 +124,22 @@ data class BackupPayload(
             it.reminderDays.split(',').all { offset -> offset.toIntOrNull() in listOf(0,1,3,7) } })
         // Reject totals that cannot be represented by the app's integer monetary model.
         transactions.fold(0L) { total, row -> Math.addExact(total, row.amount) }
+        // Check the same intermediates used by the dashboard, including future-dated income.
+        val income = transactions.filter { it.type == TransactionType.INCOME }.fold(0L) { total, row -> Math.addExact(total, row.amount) }
+        val expenses = transactions.filter { it.type == TransactionType.EXPENSE }.fold(0L) { total, row -> Math.addExact(total, row.amount) }
+        val balance = Math.subtractExact(Math.addExact(startingBalancePaisa, income), expenses)
+        Math.subtractExact(balance, protectedReservePaisa)
         plannedExpenses.fold(0L) { total, row -> Math.addExact(total, row.expectedAmount) }
     }
 
     companion object {
+        private fun JSONObject.exactLong(key: String): Long {
+            // Both supported versions always wrote integer monetary fields. Reject missing,
+            // null, string or fractional values instead of silently coercing them to zero.
+            val value = get(key)
+            require(value is Int || value is Long) { "Invalid integer field" }
+            return (value as Number).toLong()
+        }
         fun fromJsonString(jsonStr: String): BackupPayload {
             val root = JSONObject(jsonStr)
 
@@ -135,8 +149,8 @@ data class BackupPayload(
             require(root.getLong("createdAtMillis") > 0)
             val appVersion = root.optString("appVersion", "1.2.0")
             val createdAtMillis = root.optLong("createdAtMillis", System.currentTimeMillis())
-            val startingBalancePaisa = root.optLong("startingBalancePaisa", 0L)
-            val protectedReservePaisa = root.optLong("protectedReservePaisa", 0L)
+            val startingBalancePaisa = root.exactLong("startingBalancePaisa")
+            val protectedReservePaisa = root.exactLong("protectedReservePaisa")
 
             // Categories
             val catList = mutableListOf<CategoryEntity>()
@@ -164,7 +178,7 @@ data class BackupPayload(
                     TransactionEntity(
                         id = obj.getLong("id"),
                         type = TransactionType.valueOf(obj.getString("type")),
-                        amount = obj.getLong("amount"),
+                        amount = obj.exactLong("amount"),
                         categoryId = obj.getLong("categoryId"),
                         description = if (obj.isNull("description")) null else obj.getString("description"),
                         timestamp = obj.getLong("timestamp"),
@@ -187,7 +201,7 @@ data class BackupPayload(
                         categoryId = if (obj.isNull("categoryId")) null else obj.getLong("categoryId"),
                         month = obj.getInt("month"),
                         year = obj.getInt("year"),
-                        amount = obj.getLong("amount"),
+                        amount = obj.exactLong("amount"),
                         warningThresholdPercent = obj.optInt("warningThresholdPercent", 80)
                     )
                 )
@@ -202,7 +216,7 @@ data class BackupPayload(
                     PlannedExpenseEntity(
                         id = obj.getLong("id"),
                         description = obj.getString("description"),
-                        expectedAmount = obj.getLong("expectedAmount"),
+                        expectedAmount = obj.exactLong("expectedAmount"),
                         categoryId = obj.getLong("categoryId"),
                         plannedDate = obj.getLong("plannedDate"),
                         notes = if (obj.isNull("notes")) null else obj.getString("notes"),

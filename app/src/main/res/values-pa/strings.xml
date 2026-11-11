@@ -166,4 +166,22 @@
     <string name="insights_notification_message">ਖਰਚੇ ਦਾ ਅੰਦਾਜ਼ਾ ਬਦਲਿਆ ਹੈ। ਨਿੱਜੀ ਤੌਰ ਉੱਤੇ ਵੇਖਣ ਲਈ ਘਰ ਹਿਸਾਬ ਖੋਲ੍ਹੋ।</string>
     <string name="backup_exported">ਇਨਕ੍ਰਿਪਟ ਕੀਤਾ ਬੈਕਅੱਪ ਸਫਲਤਾਪੂਰਵਕ ਨਿਰਯਾਤ ਹੋਇਆ।</string>
     <string name="reminder_schedule_failed">تہاڈا منصوبہ محفوظ اے، پر اینڈرائیڈ ساریاں یاد دہانیاں مقرر نہیں کر سکیا۔ دوبارہ کوشش لئی ایپ کھولو تے اطلاع دیاں ترتیباں ویکھو۔</string>
+    <string name="drive_authorization_failed">گوگل دی اجازت نہیں ملی۔ دوبارہ رابطہ کرو؛ مسئلہ حل کرن لئی تھلے دتا کوڈ ورتو۔</string>
+    <string name="drive_http_failed">ڈرائیو نے درخواست رد کر دتی۔ اکاؤنٹ دی رسائی ویکھو یا بعد وچ کوشش کرو۔</string>
+    <string name="backup_file_too_large">ایہ بیک اپ مقررہ حد توں وڈا اے۔ کوئی ہور بیک اپ چنو۔</string>
+    <string name="backup_decryption_failed">پاس ورڈ غلط اے یا خفیہ فائل خراب اے۔ کوئی ریکارڈ بحال نہیں ہویا۔</string>
+    <string name="backup_invalid">بیک اپ دی ساخت یا مالی رقم غلط یا ناقابل قبول اے۔ کوئی ریکارڈ بحال نہیں ہویا۔</string>
+    <string name="backup_preview_stale">مقامی ڈیٹا بدل گیا اے۔ ایہ پیش منظر بند کرو تے بحالی توں پہلاں دوبارہ ویکھو۔</string>
+    <string name="drive_upload_unconfirmed">اپ لوڈ دی تصدیق نہیں ہوئی۔ نقل توں بچن لئی دوبارہ کوشش توں پہلاں بیک اپ فہرست تازہ کرو۔</string>
+    <string name="drive_network_failed">ڈرائیو تک رسائی نہیں ہوئی۔ انٹرنیٹ ویکھو تے دوبارہ کوشش کرو۔</string>
+    <string name="backup_creation_failed">خفیہ بیک اپ نہیں بن سکیا۔ مقامی مالی رقم تے خالی جگہ ویکھو۔</string>
+    <string name="drive_listing_failed">بیک اپ فہرست تازہ نہیں ہوئی۔ دوبارہ تازہ کرو؛ تصدیق شدہ اپ لوڈ کامیاب اے۔</string>
+    <string name="drive_download_failed">ایہ بیک اپ ڈاؤن لوڈ نہیں ہو سکیا۔ فہرست تازہ کر کے دوبارہ کوشش کرو۔</string>
+    <string name="backup_restore_failed">بحالی پوری نہیں ہوئی۔ جگہ ویکھ کے دوبارہ کوشش کرو۔ جے بحالی رکی ہووے تاں ڈیٹا مٹائے بغیر ایپ دوبارہ کھولو۔</string>
+    <string name="drive_refreshing">بیک اپ فہرست تازہ ہو رہی اے…</string>
+    <string name="drive_uploading">خفیہ بیک اپ تیار تے اپ لوڈ ہو رہیا اے…</string>
+    <string name="drive_downloading">بیک اپ ڈاؤن لوڈ تے جانچ ہو رہی اے…</string>
+    <string name="backup_restoring">بیک اپ بحال ہو رہیا اے…</string>
+    <string name="backup_error_code">خرابی دا کوڈ: %1$d</string>
+    <string name="backup_operation_stopped">عمل رک گیا اے۔ تفصیل تھلے ویکھو۔</string>
 </resources>

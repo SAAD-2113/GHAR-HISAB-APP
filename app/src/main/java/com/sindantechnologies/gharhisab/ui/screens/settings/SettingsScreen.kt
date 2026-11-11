@@ -496,15 +496,14 @@ fun SettingsScreen(
         )
     }
 
-    var restorePreview by remember { mutableStateOf<com.sindantechnologies.gharhisab.data.backup.BackupManager.Preview?>(null) }
+    val hostActivity = com.sindantechnologies.gharhisab.util.security.findActivity(context) as? com.sindantechnologies.gharhisab.MainActivity
+    val backupState = hostActivity?.backups ?: return
     var showExportPasswordDialog by remember { mutableStateOf(false) }
     var showImportPasswordDialog by remember { mutableStateOf(false) }
     var selectedImportUri by remember { mutableStateOf<android.net.Uri?>(null) }
-    var showGoogleDriveInfoDialog by remember { mutableStateOf(false) }
 
-    val hostActivity = com.sindantechnologies.gharhisab.util.security.findActivity(context) as? com.sindantechnologies.gharhisab.MainActivity
     androidx.compose.runtime.LaunchedEffect(hostActivity?.external?.googleResult, hostActivity?.external?.googleCancelled) {
-        if (hostActivity?.external?.googleResult != null || hostActivity?.external?.googleCancelled == true) showGoogleDriveInfoDialog = true
+        if (hostActivity?.external?.googleResult != null || hostActivity?.external?.googleCancelled == true) backupState.driveOpen = true
     }
     androidx.compose.runtime.LaunchedEffect(hostActivity?.external?.importUri) {
         hostActivity?.external?.importUri?.let { selectedImportUri = it; hostActivity.external.importUri = null; showImportPasswordDialog = true }
@@ -622,7 +621,7 @@ fun SettingsScreen(
                             try {
                                 val inputStream = context.contentResolver.openInputStream(uri)
                                 if (inputStream != null) {
-                                    restorePreview = backupManager.preview(backupManager.readBounded(inputStream), importPassword)
+                                    backupState.localPreview(backupManager.preview(backupManager.readBounded(inputStream), importPassword))
                                     showImportPasswordDialog = false
                                 } else {
                                     importError = "Cannot open selected file"
@@ -648,13 +647,10 @@ fun SettingsScreen(
         )
     }
 
-    if (showGoogleDriveInfoDialog) {
-        com.sindantechnologies.gharhisab.ui.screens.backup.DriveBackupPanel(backupManager) { showGoogleDriveInfoDialog = false }
+    if (backupState.driveOpen) {
+        com.sindantechnologies.gharhisab.ui.screens.backup.DriveBackupPanel(backupState) { backupState.driveOpen = false }
     }
-    restorePreview?.let { preview ->
-        com.sindantechnologies.gharhisab.ui.screens.backup.RestorePreviewDialog(preview, backupManager,
-            onDismiss = { restorePreview = null }, onRestored = { restorePreview = null; showImportPasswordDialog = false })
-    }
+    com.sindantechnologies.gharhisab.ui.screens.backup.RestorePreviewDialog(backupState)
 
     Scaffold(
         topBar = {
@@ -759,6 +755,9 @@ fun SettingsScreen(
 
             // Data & Storage
             SettingsGroup(title = stringResource(R.string.settings_data)) {
+                if (!backupState.driveOpen && backupState.notice.message == R.string.backup_restored) {
+                    com.sindantechnologies.gharhisab.ui.screens.backup.BackupNotice(backupState.notice)
+                }
                 SettingsItem(icon = Icons.Filled.CloudDownload, title = stringResource(R.string.backup_rollback), value = "", onClick = { authenticate { showRollback = true } })
                 SettingsItem(
                     icon = Icons.Filled.PhoneAndroid,
@@ -774,7 +773,7 @@ fun SettingsScreen(
                     icon = Icons.Filled.Cloud,
                     title = "Google Drive Cloud Sync",
                     value = stringResource(R.string.drive_model_short),
-                    onClick = { showGoogleDriveInfoDialog = true },
+                    onClick = { backupState.driveOpen = true },
                 )
                 SettingsItem(
                     icon = Icons.Filled.CloudUpload,

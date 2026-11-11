@@ -87,6 +87,29 @@ class Version3BackupTest {
         assertEquals(999L, db.transactionDao().getTransactionById(1)!!.amount)
         assertTrue(manager.recoveryBlocked.value)
         assertNotNull(vault.pending)
+        vault.failuresRemaining = 1
+        assertTrue(runCatching { manager.recoverInterruptedRestore() }.isFailure)
+        assertTrue(manager.recoveryBlocked.value)
+        assertNotNull(vault.pending)
+        manager.recoverInterruptedRestore()
+        assertFalse(manager.recoveryBlocked.value)
+        assertNull(vault.pending)
+        assertEquals(999L, db.transactionDao().getTransactionById(1)!!.amount)
+        // Same manager and process can perform a later restore after successful recovery.
+        manager.restore(manager.preview(bytes, password))
+        assertEquals(12345L, db.transactionDao().getTransactionById(1)!!.amount)
+    }
+    @Test fun invalidBalancesAreRejectedBeforeAnyRestoreMutation() = runBlocking {
+        val valid = manager.preview(manager.createEncryptedBackupBytes(password), password).payload
+        for (version in listOf(1, 2)) {
+            for (key in listOf("startingBalancePaisa", "protectedReservePaisa")) {
+                val json = org.json.JSONObject(valid.toJsonString()).put("backupVersion", version)
+                json.remove(key)
+                val encrypted = SecurityUtils.encryptAesGcm(json.toString().toByteArray(), password)
+                assertTrue(runCatching { manager.preview(encrypted, password) }.exceptionOrNull() is BackupManager.InvalidBackup)
+                assertEquals(12345L, db.transactionDao().getTransactionById(1)!!.amount)
+            }
+        }
     }
     @Test fun interruptedRestoreRecoversOldRecordsBeforeUse() = runBlocking {
         val snapshot = manager.preview(manager.createEncryptedBackupBytes(password), password).payload

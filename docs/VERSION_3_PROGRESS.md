@@ -1,6 +1,6 @@
 # Version 3 implementation and verification
 
-Version **3.0.0**, version code **4**. Application ID: `com.sindantechnologies.gharhisab`. The Version 3 implementation is present; production acceptance still requires Google Cloud configuration and physical-device validation. See [Google Drive setup](GOOGLE_DRIVE_SETUP.md).
+Version **3.0.0**, version code **4**. Application ID: `com.sindantechnologies.gharhisab`. The Version 3 implementation is present; the owner reports Google Cloud configuration complete; production acceptance still requires physical-device validation. See [Google Drive setup](GOOGLE_DRIVE_SETUP.md).
 
 ## Implemented behavior
 
@@ -76,10 +76,26 @@ Use the original signing key or a separate test device if the installed app has 
 
 ## Remaining configuration and acceptance limits
 
-- The owner has confirmed Google Cloud is not configured. Follow the [setup guide](GOOGLE_DRIVE_SETUP.md), then exercise real authorization, upload/download and second-device restore. No Google passwords/tokens/keys belong in the repository.
+- The owner reports Google Cloud configuration complete. Use the [setup guide](GOOGLE_DRIVE_SETUP.md) as reference and exercise real authorization, upload/download and second-device restore. No Google passwords/tokens/keys belong in the repository.
 - There is no attached Android device/emulator and `/dev/kvm` is unavailable. Instrumentation tests compile but have not run. Host Robolectric tests do not verify OEM keyboard/navigation, device credentials, Android Keystore hardware, real notification delivery or Android process termination at every restore boundary.
 - Test API 29 and current Android releases, both themes, actual IME/nav modes, large fonts, lock/recovery/rotation/backgrounding, denied notifications, reboot and interrupted restores before publishing a production release. The host migration test covers a populated v2 database; a physical v1 upgrade remains part of acceptance.
 - Cloud list is limited to the latest 20 snapshots. No background uploads, cloud retention UI or automatic record merge is implemented. Core financial work remains offline.
 - PIN-based application access control is not database encryption and cannot protect against an attacker controlling the OS. Four-digit PINs depend on application rate limiting; use the device's secure screen lock as well. Portable backup passwords must be stored safely by the user.
 
 The cloud setup/startup draft has been updated for reuse; publishing that draft and testing a new environment snapshot are separate platform actions.
+
+
+## Drive reliability follow-up
+
+The read-only audit identified reliability gaps. The owner subsequently authorized local fixes, tests and a test APK, without committing or publishing changes.
+
+- Drive transfers, authorization resolutions, restore previews and completion/error state now belong to an Activity-scoped ViewModel. Rotation and temporary UI removal for app locking do not cancel its jobs. Credentials remain memory-only; no tokens, passwords or plaintext are written to saved-state bundles. This is not a persistent background worker and does not promise transfer completion after process death.
+- An acknowledged upload remains successful even if its subsequent list refresh fails. A lost upload response is explicitly unconfirmed; refresh before retrying to avoid duplicate snapshots.
+- Errors distinguish authorization/status codes, HTTP responses, connectivity, decryption, invalid payloads, stale previews, local backup creation and restoration. Raw exception/server bodies, tokens and financial data are not included in Drive error messages.
+- Successful startup recovery clears the blocking flag on the same BackupManager instance. A failed recovery leaves it blocked.
+- Both supported backup formats must contain their originally required integer balance/reserve fields. Missing/null/fractional/string monetary values and overflowing starting-balance/income arithmetic are rejected before mutation. Existing optional v1 defaults remain supported. No signing configuration, Room schema or migration was changed.
+- The list still intentionally shows at most 20 snapshots. Pagination, automatic cloud uploads and two-way synchronization are outside this focused patch.
+
+New checks exercise the real HTTP adapter with controlled in-memory connections, retained controller state, a Robolectric MainActivity recreation/background cycle, recovery retry and malformed backup rejection. These are automated host checks, not live Google or physical-device results. Verification on 11 November 2026: the complete `:app:assembleDebug :app:testDebugUnitTest :app:lintDebug :app:assembleDebugAndroidTest` command passed. **71 tests passed, zero failures/errors/skips**. Lint reported **zero errors, 86 warnings and 1 informational findings**. The debug APK and instrumentation APK were generated; instrumentation tests were not run on a phone. One new test fixture initially omitted required constructor arguments; that compile failure was corrected before the successful run. Source whitespace checks passed.
+
+After the successful local checks, the owner authorized pushing the reliability fixes and publishing the tested debug APK as a GitHub prerelease. Live Google Drive and physical-device acceptance remain pending.

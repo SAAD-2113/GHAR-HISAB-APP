@@ -180,4 +180,22 @@
     <string name="insights_notification_message">Your spending outlook changed. Open GharHisab to review privately.</string>
     <string name="backup_exported">Encrypted backup exported successfully.</string>
     <string name="reminder_schedule_failed">Your plan is saved, but Android could not schedule all reminders. Reopen the app to retry and check notification settings.</string>
+    <string name="drive_authorization_failed">Google authorization failed. Retry Connect; use the error code below when troubleshooting.</string>
+    <string name="drive_http_failed">Drive rejected the request. Check account access or retry later.</string>
+    <string name="backup_file_too_large">This backup exceeds the supported size limit. Choose another backup.</string>
+    <string name="backup_decryption_failed">The password is incorrect or the encrypted file is damaged. No records were restored.</string>
+    <string name="backup_invalid">The backup format or financial values are invalid or unsupported. No records were restored.</string>
+    <string name="backup_preview_stale">Local data changed. Close this preview and preview the backup again before restoring.</string>
+    <string name="drive_upload_unconfirmed">Upload could not be confirmed. Refresh the backup list before retrying to avoid duplicate snapshots.</string>
+    <string name="drive_network_failed">Could not reach Drive. Check your connection and retry this operation.</string>
+    <string name="backup_creation_failed">Could not create the encrypted backup. Check local financial values and available storage.</string>
+    <string name="drive_listing_failed">Could not refresh the backup list. Retry Refresh; an acknowledged upload is still successful.</string>
+    <string name="drive_download_failed">Could not download this backup. Refresh the list and try again.</string>
+    <string name="backup_restore_failed">Restore could not finish. Retry after checking storage. If recovery is blocked, restart the app without clearing its data.</string>
+    <string name="drive_refreshing">Refreshing backup list…</string>
+    <string name="drive_uploading">Preparing and uploading encrypted backup…</string>
+    <string name="drive_downloading">Downloading and checking backup…</string>
+    <string name="backup_restoring">Restoring backup…</string>
+    <string name="backup_error_code">Error code: %1$d</string>
+    <string name="backup_operation_stopped">Operation stopped. See the details below.</string>
 </resources>

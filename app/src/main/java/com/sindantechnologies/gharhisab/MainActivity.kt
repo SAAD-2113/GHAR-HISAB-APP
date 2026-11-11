@@ -20,10 +20,27 @@ import com.sindantechnologies.gharhisab.util.reminder.ReminderScheduler
 import kotlinx.coroutines.launch
 
 class MainActivity : FragmentActivity() {
+    val backups by lazy {
+        val container = (application as GharHisabApplication).container
+        val authorization = com.google.android.gms.auth.api.identity.Identity.getAuthorizationClient(applicationContext)
+        androidx.lifecycle.ViewModelProvider(this, object : androidx.lifecycle.ViewModelProvider.Factory {
+            @Suppress("UNCHECKED_CAST")
+            override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T =
+                com.sindantechnologies.gharhisab.ui.screens.backup.BackupViewModel(container.backupManager,
+                    invalidateToken = { token ->
+                        kotlinx.coroutines.suspendCancellableCoroutine<Unit> { continuation ->
+                            authorization.clearToken(com.google.android.gms.auth.api.identity.ClearTokenRequest.builder().setToken(token).build())
+                                .addOnSuccessListener { if (continuation.isActive) continuation.resumeWith(Result.success(Unit)) }
+                                .addOnFailureListener { if (continuation.isActive) continuation.resumeWith(Result.failure(it)) }
+                                .addOnCanceledListener { if (continuation.isActive) continuation.resumeWith(Result.failure(IllegalStateException("Token invalidation cancelled"))) }
+                        }
+                    }) as T
+        })[com.sindantechnologies.gharhisab.ui.screens.backup.BackupViewModel::class.java]
+    }
     val external by lazy { androidx.lifecycle.ViewModelProvider(this)[ExternalActions::class.java] }
     val googleAuthorization = registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.StartIntentSenderForResult()) {
         external.googleResult = if (it.resultCode == RESULT_OK) it.data else null
-        external.googleCancelled = it.resultCode != RESULT_OK
+        external.googleCancelled = it.resultCode != RESULT_OK || it.data == null
     }
     val importDocument = registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.OpenDocument()) { external.importUri = it }
     val exportDocument = registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.CreateDocument("application/octet-stream")) {
