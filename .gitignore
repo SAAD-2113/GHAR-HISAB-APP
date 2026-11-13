@@ -12,3 +12,6 @@ app/build/
 .cxx
 
 .kotlin/
+
+# Published APKs belong on main; ordinary build outputs remain ignored.
+!/releases/**/*.apk
