@@ -15,7 +15,10 @@ data class ParsedVoiceTransaction(
     val timestamp: Long,
     val originalText: String,
     val isAmbiguous: Boolean,
-    val parsingNotes: String? = null
+    val parsingNotes: String? = null,
+    val hasExplicitType: Boolean = false,
+    val hasExplicitDate: Boolean = false,
+    val hasUnsupportedDate: Boolean = false,
 )
 
 /**
@@ -36,7 +39,8 @@ object VoiceTransactionParser {
         val lowerText = text.lowercase()
 
         // 1. Extract Amount in Paisa
-        val amountPaisa = extractAmountPaisa(text)
+        val amount = amountMatch(text, languageCode)
+        val amountPaisa = amount?.paisa
 
         // 2. Extract Transaction Type (Income vs Expense)
         val type = extractTransactionType(lowerText, text)
@@ -45,14 +49,16 @@ object VoiceTransactionParser {
         val matchedCategory = matchCategory(lowerText, text, categories, type)
 
         // 4. Extract Date
-        val timestamp = extractDate(lowerText, text)
+        val timestamp = extractDate(text)
+        val unsupportedDate = absoluteDatePattern.containsMatchIn(normalize(text))
 
         // 5. Clean Description
-        val description = buildCleanDescription(text, matchedCategory?.name)
+        val description = buildCleanDescription(text, amount, languageCode)
 
-        val isAmbiguous = amountPaisa == null || amountPaisa <= 0L
+        val isAmbiguous = amountPaisa == null || amountPaisa <= 0L || unsupportedDate
 
         val notes = when {
+            unsupportedDate -> "Choose the calendar date in manual entry before saving."
             amountPaisa == null -> "Could not detect the amount. Please enter it manually."
             matchedCategory == null -> "Please select a category for this transaction."
             else -> null
@@ -66,58 +72,126 @@ object VoiceTransactionParser {
             timestamp = timestamp,
             originalText = text,
             isAmbiguous = isAmbiguous,
-            parsingNotes = notes
+            parsingNotes = notes,
+            hasExplicitType = type == TransactionType.INCOME || matchedCategory != null ||
+                listOf("spent", "expense", "paid", "خرچ", "ادا", "ਖਰਚ").any { lowerText.contains(it) },
+            hasExplicitDate = relativeDatePattern.containsMatchIn(normalize(text)),
+            hasUnsupportedDate = unsupportedDate,
         )
     }
 
-    /**
-     * Extracts monetary amount in paisa (1 PKR = 100 paisa) from spoken transcript.
-     */
-    fun extractAmountPaisa(text: String): Long? {
-        // Step A: Replace Eastern Arabic / Urdu Numerals with Latin digits
-        var normalized = text
-            .replace('۰', '0').replace('۱', '1').replace('۲', '2')
-            .replace('۳', '3').replace('۴', '4').replace('۵', '5')
-            .replace('۶', '6').replace('۷', '7').replace('۸', '8')
-            .replace('۹', '9')
-            // Gurmukhi numerals
-            .replace('੦', '0').replace('੧', '1').replace('੨', '2')
-            .replace('੩', '3').replace('੪', '4').replace('੫', '5')
-            .replace('੬', '6').replace('੭', '7').replace('੮', '8')
-            .replace('੯', '9')
+    private val monthNames = "january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|sept|oct|nov|dec|جنوری|فروری|مارچ|اپریل|مئی|جون|جولائی|اگست|ستمبر|اکتوبر|نومبر|دسمبر|ਜਨਵਰੀ|ਫਰਵਰੀ|ਮਾਰਚ|ਅਪ੍ਰੈਲ|ਮਈ|ਜੂਨ|ਜੁਲਾਈ|ਅਗਸਤ|ਸਤੰਬਰ|ਅਕਤੂਬਰ|ਨਵੰਬਰ|ਦਸੰਬਰ"
+    // Absolute dates require the date picker; their digits must never become an amount.
+    private val absoluteDatePattern = Regex("""(?<![\p{L}\p{N}])(?:[0-9]{1,4}[/.-][0-9]{1,2}[/.-][0-9]{1,4}|[0-9]{1,2}/[0-9]{1,2}|[0-9]{1,2}(?:st|nd|rd|th)?\s+(?:$monthNames)(?:\s+[0-9]{4})?|(?:$monthNames)\s+[0-9]{1,2}(?:st|nd|rd|th)?(?:,?\s+[0-9]{4})?)(?![\p{L}\p{N}])""")
+    private val relativeDatePattern = Regex("""(?<![\p{L}\p{N}])(?:day before yesterday|yesterday|today|گزشتہ کل|پچھلے کل|پرسوں|آج|اج|ਅੱਜ)(?![\p{L}\p{N}])""", RegexOption.IGNORE_CASE)
 
-        // Step B: Look for explicit numbers in text (e.g., "500", "1,200", "250.50")
-        val digitRegex = Regex("""\b(\d+[\d,]*(\.\d{1,2})?)\b""")
-        val match = digitRegex.find(normalized)
-        if (match != null) {
-            val numStr = match.value.replace(",", "")
-            val paisa = CurrencyFormatter.parseRupeesToPaisa(numStr)
-            if (paisa != null && paisa > 0L) {
-                // Check if followed by "thousand", "hazar", "lakh"
-                val afterNumber = normalized.substring(match.range.last + 1).trimStart().lowercase()
-                return when {
-                    afterNumber.startsWith("thousand") || afterNumber.startsWith("hazar") || afterNumber.startsWith("ہزار") || afterNumber.startsWith("ਹਜ਼ਾਰ") ->
-                        paisa * 1000L
-                    afterNumber.startsWith("lakh") || afterNumber.startsWith("lac") || afterNumber.startsWith("لاکھ") || afterNumber.startsWith("ਲੱਖ") ->
-                        paisa * 100000L
-                    else -> paisa
-                }
+    /** A single, bounded monetary phrase. Its span is also removed from the description. */
+    private data class AmountMatch(val paisa: Long, val range: IntRange, val explicitCurrency: Boolean)
+    private data class Token(val text: String, val range: IntRange)
+    private val currencies = setOf("rupee", "rupees", "pkr", "rs", "روپے", "روپیہ", "روپئے", "ਰੁਪਏ", "ਰੁਪਿਆ")
+    private val conjunctions = setOf("and", "اور", "تے", "ਅਤੇ")
+    private val scales = mapOf(
+        "hundred" to 100L, "سو" to 100L, "سئو" to 100L, "ਸੌ" to 100L, "sau" to 100L,
+        "thousand" to 1000L, "hazar" to 1000L, "hazaar" to 1000L, "ہزار" to 1000L, "ਹਜ਼ਾਰ" to 1000L, "ਹਜਾਰ" to 1000L,
+        "lakh" to 100000L, "lac" to 100000L, "لاکھ" to 100000L, "ਲੱਖ" to 100000L,
+        "million" to 1000000L, "crore" to 10000000L, "کروڑ" to 10000000L, "ਕਰੋੜ" to 10000000L,
+    )
+    private val numbers = buildMap<String, Long> {
+        fun putSeries(words: String, start: Int = 0) = words.split(' ').forEachIndexed { i, word -> put(word, (start + i).toLong()) }
+        putSeries("zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen")
+        listOf("twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety").forEachIndexed { i, word -> put(word, (i + 2) * 10L) }
+        putSeries("صفر ایک دو تین چار پانچ چھ سات آٹھ نو دس گیارہ بارہ تیرہ چودہ پندرہ سولہ سترہ اٹھارہ انیس بیس")
+        putSeries("اکیس بائیس تئیس چوبیس پچیس چھبیس ستائیس اٹھائیس انتیس تیس", 21)
+        putSeries("اکتیس بتیس تینتیس چونتیس پینتیس چھتیس سینتیس اڑتیس انتالیس چالیس", 31)
+        putSeries("اکتالیس بیالیس تینتالیس چوالیس پینتالیس چھیالیس سینتالیس اڑتالیس انچاس پچاس", 41)
+        putSeries("اکیاون باون ترپن چوّن پچپن چھپن ستاون اٹھاون انسٹھ ساٹھ", 51)
+        putSeries("اکسٹھ باسٹھ تریسٹھ چونسٹھ پینسٹھ چھیاسٹھ سڑسٹھ اڑسٹھ انہتر ستر", 61)
+        putSeries("اکہتر بہتر تہتر چوہتر پچھتر چھہتر ستتر اٹھہتر اناسی اسی", 71)
+        putSeries("اکیاسی بیاسی تراسی چوراسی پچاسی چھیاسی ستاسی اٹھاسی نواسی نوے", 81)
+        putSeries("اکانوے بانوے ترانوے چورانوے پچانوے چھیانوے ستانوے اٹھانوے ننانوے", 91)
+        putSeries("ਸਿਫਰ ਇੱਕ ਦੋ ਤਿੰਨ ਚਾਰ ਪੰਜ ਛੇ ਸੱਤ ਅੱਠ ਨੌਂ ਦਸ ਗਿਆਰਾਂ ਬਾਰਾਂ ਤੇਰਾਂ ਚੌਦਾਂ ਪੰਦਰਾਂ ਸੋਲਾਂ ਸਤਾਰਾਂ ਅਠਾਰਾਂ ਉੱਨੀ ਵੀਹ")
+        listOf("ਤੀਹ", "ਚਾਲੀ", "ਪੰਜਾਹ", "ਸੱਠ", "ਸੱਤਰ", "ਅੱਸੀ", "ਨੱਬੇ").forEachIndexed { i, word -> put(word, (i + 3) * 10L) }
+        putAll(mapOf("ہک" to 1L, "اک" to 1L, "ترے" to 3L, "پنج" to 5L, "چھے" to 6L, "ست" to 7L, "اٹھ" to 8L,
+            "ویہہ" to 20L, "تریہہ" to 30L, "پنجاہ" to 50L, "ਪੰਜਾਹ" to 50L))
+    }
+    private val romanNumbers = mapOf(
+            "ik" to 1L, "do" to 2L, "teen" to 3L, "tin" to 3L, "char" to 4L, "chaar" to 4L,
+            "panch" to 5L, "paanch" to 5L, "panj" to 5L, "das" to 10L, "bees" to 20L, "veeh" to 20L,
+            "tees" to 30L, "chalis" to 40L, "pachas" to 50L, "panjah" to 50L, "saath" to 60L,
+            "sattar" to 70L, "assi" to 80L, "nabbe" to 90L)
+    private fun spokenNumbers(language: String): Map<String, Long> =
+        if (language.substringBefore('-') in setOf("ur", "pa")) numbers + romanNumbers else numbers
+    private fun normalize(text: String): String = text.map { c ->
+        when {
+            Character.digit(c, 10) >= 0 -> ('0'.code + Character.digit(c, 10)).toChar()
+            c == '٫' -> '.'
+            c == '٬' -> ','
+            c == 'ي' || c == 'ى' -> 'ی'
+            c == 'ك' -> 'ک'
+            else -> c.lowercaseChar()
+        }
+    }.joinToString("")
+
+    fun extractAmountPaisa(text: String): Long? = amountMatch(text)?.paisa
+
+    private fun amountMatch(text: String, languageCode: String = "en"): AmountMatch? {
+        val spokenNumbers = spokenNumbers(languageCode)
+        val normalized = normalize(text)
+        val withoutDates = absoluteDatePattern.replace(normalized) { " ".repeat(it.value.length) }
+        val tokens = Regex("""[0-9]+(?:,[0-9]+)*(?:\.[0-9]+)?|[\p{L}\p{M}]+""")
+            .findAll(withoutDates).map { Token(it.value, it.range) }.toList()
+        fun value(token: String): java.math.BigDecimal? = spokenNumbers[token]?.toBigDecimal()
+            ?: token.takeIf { it.firstOrNull()?.isDigit() == true }?.replace(",", "")?.toBigDecimalOrNull()
+        val found = mutableListOf<AmountMatch>()
+        var i = 0
+        while (i < tokens.size) {
+            if (value(tokens[i].text) == null && tokens[i].text !in scales) { i++; continue }
+            val first = i
+            var total = java.math.BigDecimal.ZERO
+            var current = java.math.BigDecimal.ZERO
+            var previousDigit = false
+            var previousScale = false
+            while (i < tokens.size) {
+                val word = tokens[i].text
+                val number = value(word)
+                val scale = scales[word]
+                if (word in conjunctions && i + 1 < tokens.size && value(tokens[i + 1].text) != null) { i++; continue }
+                if (number != null) {
+                    // Separate literal amounts are ambiguous; do not silently add them together.
+                    if (i > first && previousDigit && !previousScale && word.first().isDigit()) break
+                    current += number
+                    previousDigit = word.first().isDigit()
+                    previousScale = false
+                } else if (scale != null) {
+                    if (previousScale && current.signum() == 0) break
+                    current = (if (current.signum() == 0) java.math.BigDecimal.ONE else current) * scale.toBigDecimal()
+                    if (scale >= 1000) { total += current; current = java.math.BigDecimal.ZERO }
+                    previousScale = true
+                    previousDigit = false
+                } else break
+                i++
             }
+            var from = tokens[first].range.first
+            var to = tokens[i - 1].range.last
+            var currency = false
+            if (first > 0 && tokens[first - 1].text in currencies) { from = tokens[first - 1].range.first; currency = true }
+            if (i < tokens.size && tokens[i].text in currencies) { to = tokens[i].range.last; i++; currency = true }
+            if (from > 0 && normalized.substring(0, from).trimEnd().endsWith("₨")) {
+                from = normalized.lastIndexOf('₨', from - 1); currency = true
+            }
+            // Reject negatives and overly precise/overflowing input; never truncate money.
+            val numberStart = tokens[first].range.first
+            if ((from > 0 && normalized.substring(0, from).trimEnd().endsWith('-')) ||
+                (numberStart > 0 && normalized.substring(0, numberStart).trimEnd().endsWith('-'))) continue
+            val paisa = runCatching { ((total + current) * 100.toBigDecimal()).longValueExact() }.getOrNull()
+            if (paisa != null && paisa > 0) found.add(AmountMatch(paisa, from..to, currency))
         }
-
-        // Step C: Urdu / Punjabi word number parsing
-        val urduAmount = parseUrduWords(normalized)
-        if (urduAmount != null && urduAmount > 0L) {
-            return urduAmount * CurrencyFormatter.PAISA_PER_RUPEE
+        val explicit = found.filter { it.explicitCurrency }
+        return when {
+            explicit.size == 1 -> explicit.single()
+            found.size == 1 -> found.single()
+            else -> null
         }
-
-        // Step D: English word number parsing
-        val englishAmount = parseEnglishWords(normalized.lowercase())
-        if (englishAmount != null && englishAmount > 0L) {
-            return englishAmount * CurrencyFormatter.PAISA_PER_RUPEE
-        }
-
-        return null
     }
 
     private fun extractTransactionType(lowerText: String, originalText: String): TransactionType {
@@ -170,136 +244,65 @@ object VoiceTransactionParser {
         }
 
         // Second attempt: match against any active category by name or keywords
-        for (category in categories) {
+        for (category in categories.filter { it.transactionType == type }) {
             if (combined.contains(category.name.lowercase())) {
                 return category
             }
         }
 
-        // Fallback: return default category or "Other"
-        return categories.find { it.name.equals("Other", ignoreCase = true) && it.transactionType == type }
-            ?: categories.firstOrNull { it.transactionType == type }
+        // No match is different from explicitly speaking "Other". Do not overwrite an earlier selection.
+        return null
     }
 
-    private fun extractDate(lowerText: String, originalText: String): Long {
+    private fun extractDate(text: String): Long {
         val calendar = Calendar.getInstance()
-        val combined = "$lowerText $originalText"
-        when {
-            combined.contains("yesterday") || combined.contains("گزشتہ کل") || combined.contains("پچھلے کل") -> {
-                calendar.add(Calendar.DAY_OF_YEAR, -1)
-            }
-            combined.contains("day before yesterday") || combined.contains("پرسوں") -> {
-                calendar.add(Calendar.DAY_OF_YEAR, -2)
-            }
-            // default is today (current time)
+        val relativeDate = relativeDatePattern.find(normalize(text))?.value
+        when (relativeDate) {
+            "day before yesterday", "پرسوں" -> calendar.add(Calendar.DAY_OF_YEAR, -2)
+            "yesterday", "گزشتہ کل", "پچھلے کل" -> calendar.add(Calendar.DAY_OF_YEAR, -1)
         }
         return calendar.timeInMillis
     }
 
-    private fun buildCleanDescription(text: String, categoryName: String?): String {
-        val trimmed = text.trim()
-        return if (trimmed.length > 50) {
-            trimmed.take(47) + "..."
-        } else if (trimmed.isNotBlank()) {
-            trimmed
-        } else {
-            categoryName ?: "Voice Entry"
-        }
+    private fun buildCleanDescription(text: String, amount: AmountMatch?, languageCode: String): String {
+        val spokenNumbers = spokenNumbers(languageCode)
+        val withoutAmount = if (amount == null) text else text.removeRange(amount.range)
+        val withoutRelativeDates = relativeDatePattern.replace(withoutAmount, "")
+        val cleaned = withoutRelativeDates.replace(Regex("""\s+"""), " ").trim(' ', ',', '.', ':', ';', '-', '،')
+        val words = Regex("""[\p{L}\p{M}]+""").findAll(normalize(cleaned)).map { it.value }.toList()
+        // Invalid/ambiguous numeric-only speech must not replace an existing description either.
+        return if (words.all { it in spokenNumbers || it in scales || it in currencies || it in conjunctions }) "" else cleaned
     }
+}
 
-    private fun parseUrduWords(text: String): Long? {
-        val units = mapOf(
-            "ایک" to 1L, "دو" to 2L, "تین" to 3L, "چار" to 4L, "پانچ" to 5L,
-            "چھ" to 6L, "سات" to 7L, "آٹھ" to 8L, "نو" to 9L, "دس" to 10L,
-            "گیارہ" to 11L, "بارہ" to 12L, "تیرہ" to 13L, "چودہ" to 14L, "پندرہ" to 15L,
-            "سولہ" to 16L, "سترہ" to 17L, "اٹھارہ" to 18L, "انیس" to 19L, "بیس" to 20L,
-            "تیس" to 30L, "چالیس" to 40L, "پچاس" to 50L, "ساٹھ" to 60L, "ستر" to 70L,
-            "اسی" to 80L, "نوے" to 90L,
-            // Punjabi variations
-            "ہک" to 1L, "ترے" to 3L, "پنج" to 5L, "ست" to 7L, "اٹھ" to 8L,
-            "ویہہ" to 20L, "تریہہ" to 30L, "پنجاہ" to 50L, "ਸੌ" to 100L, "ਪੰਜ" to 5L
+/** Only fields present in the new utterance are merged. Manual edits remain authoritative. */
+data class VoiceEntryDraft(
+    val type: TransactionType = TransactionType.EXPENSE,
+    val amountText: String = "",
+    val category: CategoryEntity? = null,
+    val description: String = "",
+    val timestamp: Long? = null,
+    val manualType: Boolean = false,
+    val manualAmount: Boolean = false,
+    val manualCategory: Boolean = false,
+    val manualDescription: Boolean = false,
+    val requiresManualDate: Boolean = false,
+) {
+    fun merge(parsed: ParsedVoiceTransaction): VoiceEntryDraft {
+        val nextType = if (!manualType && parsed.hasExplicitType) parsed.type else type
+        val incomingCategory = parsed.matchedCategory?.takeIf { it.transactionType == nextType }
+        val retainedCategory = category?.takeIf { it.transactionType == nextType }
+        return copy(
+            type = nextType,
+            amountText = if (!manualAmount && parsed.amountPaisa != null) CurrencyFormatter.formatPaisaRaw(parsed.amountPaisa) else amountText,
+            category = if (manualCategory) retainedCategory else incomingCategory ?: retainedCategory,
+            description = if (!manualDescription && parsed.description.isNotBlank()) parsed.description else description,
+            timestamp = if (parsed.hasExplicitDate || timestamp == null) parsed.timestamp else timestamp,
+            requiresManualDate = when {
+                parsed.hasUnsupportedDate -> true
+                parsed.hasExplicitDate -> false
+                else -> requiresManualDate
+            },
         )
-
-        var total = 0L
-        var current = 0L
-
-        val words = text.split(Regex("""[\s,]+"""))
-        var foundAny = false
-
-        for (word in words) {
-            val w = word.trim()
-            val unit = units[w]
-            when {
-                unit != null -> {
-                    current += unit
-                    foundAny = true
-                }
-                w == "سو" || w == "سئو" || w == "ਸੌ" -> {
-                    current = if (current == 0L) 100L else current * 100L
-                    total += current
-                    current = 0L
-                    foundAny = true
-                }
-                w == "ہزار" || w == "ਹਜ਼ਾਰ" -> {
-                    current = if (current == 0L) 1000L else current * 1000L
-                    total += current
-                    current = 0L
-                    foundAny = true
-                }
-                w == "لاکھ" || w == "ਲੱਖ" -> {
-                    current = if (current == 0L) 100000L else current * 100000L
-                    total += current
-                    current = 0L
-                    foundAny = true
-                }
-            }
-        }
-        total += current
-        return if (foundAny && total > 0L) total else null
-    }
-
-    private fun parseEnglishWords(text: String): Long? {
-        val wordsMap = mapOf(
-            "one" to 1L, "two" to 2L, "three" to 3L, "four" to 4L, "five" to 5L,
-            "six" to 6L, "seven" to 7L, "eight" to 8L, "nine" to 9L, "ten" to 10L,
-            "eleven" to 11L, "twelve" to 12L, "thirteen" to 13L, "fourteen" to 14L,
-            "fifteen" to 15L, "sixteen" to 16L, "seventeen" to 17L, "eighteen" to 18L,
-            "nineteen" to 19L, "twenty" to 20L, "thirty" to 30L, "forty" to 40L,
-            "fifty" to 50L, "sixty" to 60L, "seventy" to 70L, "eighty" to 80L,
-            "ninety" to 90L
-        )
-
-        var total = 0L
-        var current = 0L
-        var foundAny = false
-
-        val words = text.split(Regex("""[\s,-]+"""))
-        for (w in words) {
-            val num = wordsMap[w]
-            when {
-                num != null -> {
-                    current += num
-                    foundAny = true
-                }
-                w == "hundred" -> {
-                    current = if (current == 0L) 100L else current * 100L
-                    foundAny = true
-                }
-                w == "thousand" -> {
-                    current = if (current == 0L) 1000L else current * 1000L
-                    total += current
-                    current = 0L
-                    foundAny = true
-                }
-                w == "lakh" || w == "lac" -> {
-                    current = if (current == 0L) 100000L else current * 100000L
-                    total += current
-                    current = 0L
-                    foundAny = true
-                }
-            }
-        }
-        total += current
-        return if (foundAny && total > 0L) total else null
     }
 }

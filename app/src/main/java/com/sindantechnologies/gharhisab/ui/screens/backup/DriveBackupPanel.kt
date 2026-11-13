@@ -30,7 +30,10 @@ fun DriveBackupPanel(model: BackupViewModel, onDismiss: () -> Unit) {
     // Password inputs are deliberately not saved across screen recreation.
     var password by remember { mutableStateOf("") }
     var confirmation by remember { mutableStateOf("") }
-    fun failed(error: Exception) { model.authorizationFailed((error as? ApiException)?.statusCode) }
+    fun failed(error: Exception) {
+        val code = (error as? ApiException)?.statusCode
+        model.authorizationFailed(code, cancelled = code == com.google.android.gms.common.api.CommonStatusCodes.CANCELED)
+    }
     fun accept(result: AuthorizationResult) {
         if (result.hasResolution()) {
             result.pendingIntent?.let(model::resolveAuthorization) ?: model.authorizationFailed()
@@ -48,22 +51,28 @@ fun DriveBackupPanel(model: BackupViewModel, onDismiss: () -> Unit) {
         try { host.googleAuthorization.launch(IntentSenderRequest.Builder(pending.intentSender).build()) }
         catch (e: Exception) { failed(e) }
     }
-    LaunchedEffect(host?.external?.googleResult, host?.external?.googleCancelled) {
-        val result = host?.external?.googleResult
-        if (result != null) {
-            host.external.googleResult = null
-            try { accept(client.getAuthorizationResultFromIntent(result)) }
-            catch (e: Exception) { failed(e) }
-        } else if (host?.external?.googleCancelled == true) {
-            host.external.googleCancelled = false
-            model.authorizationFailed(cancelled = true)
+    LaunchedEffect(host?.external?.googleResult) {
+        val result = host?.external?.googleResult ?: return@LaunchedEffect
+        host.external.googleResult = null
+        when (val decoded = com.sindantechnologies.gharhisab.data.backup.GoogleAuthorizationOutcome.decode(result.data, client::getAuthorizationResultFromIntent)) {
+            is com.sindantechnologies.gharhisab.data.backup.GoogleAuthorizationOutcome.Result.Success -> accept(decoded.value)
+            is com.sindantechnologies.gharhisab.data.backup.GoogleAuthorizationOutcome.Result.Failure -> model.authorizationFailed(decoded.code, decoded.userCancelled)
         }
     }
     AlertDialog(onDismissRequest = { if (!model.busy) onDismiss() }, title = { Text(stringResource(R.string.drive_title)) }, text = {
         Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(stringResource(R.string.drive_model))
             BackupNotice(model.notice)
-            model.error?.let { BackupNotice(it, isError = true) }
+            model.error?.let {
+                BackupNotice(it, isError = true)
+                if (it.message == R.string.drive_authorization_failed) {
+                    Text(stringResource(R.string.drive_oauth_certificate_help), style = MaterialTheme.typography.bodySmall)
+                    val certificate = remember { com.sindantechnologies.gharhisab.util.SigningIdentity.sha1(context) }
+                    androidx.compose.foundation.text.selection.SelectionContainer {
+                        Column { Text(context.packageName); certificate?.let { fingerprint -> Text(fingerprint, style = MaterialTheme.typography.bodySmall) } }
+                    }
+                }
+            }
             model.account?.name?.let { Text(it) }
             if (!model.connected) Button(enabled = !model.busy, onClick = {
                 if (model.beginAuthorization()) {
@@ -75,8 +84,8 @@ fun DriveBackupPanel(model: BackupViewModel, onDismiss: () -> Unit) {
                 }
             }) { Text(stringResource(R.string.drive_connect)) }
             else {
-                OutlinedTextField(password, { password = it }, enabled = !model.busy, label = { Text(stringResource(R.string.backup_password)) }, visualTransformation = PasswordVisualTransformation())
-                OutlinedTextField(confirmation, { confirmation = it }, enabled = !model.busy, label = { Text(stringResource(R.string.backup_confirm_password)) }, visualTransformation = PasswordVisualTransformation())
+                OutlinedTextField(password, { password = it }, enabled = !model.busy, label = { Text(stringResource(R.string.backup_password)) }, visualTransformation = PasswordVisualTransformation(), keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Password))
+                OutlinedTextField(confirmation, { confirmation = it }, enabled = !model.busy, label = { Text(stringResource(R.string.backup_confirm_password)) }, visualTransformation = PasswordVisualTransformation(), keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Password))
                 Text(stringResource(R.string.backup_recovery_warning))
                 Button(enabled = !model.busy && password.length >= 12 && password == confirmation, onClick = {
                     model.upload(password); password = ""; confirmation = ""

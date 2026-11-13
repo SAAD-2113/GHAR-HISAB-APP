@@ -39,8 +39,8 @@ class MainActivity : FragmentActivity() {
     }
     val external by lazy { androidx.lifecycle.ViewModelProvider(this)[ExternalActions::class.java] }
     val googleAuthorization = registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.StartIntentSenderForResult()) {
-        external.googleResult = if (it.resultCode == RESULT_OK) it.data else null
-        external.googleCancelled = it.resultCode != RESULT_OK || it.data == null
+        // Even RESULT_CANCELED can carry a useful Google API error. Preserve it for parsing.
+        external.recordGoogleResult(it.resultCode, it.data)
     }
     val importDocument = registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.OpenDocument()) { external.importUri = it }
     val exportDocument = registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.CreateDocument("application/octet-stream")) {
@@ -53,6 +53,7 @@ class MainActivity : FragmentActivity() {
     private var covered by mutableStateOf(false)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        com.sindantechnologies.gharhisab.util.security.BiometricAuthManager.reattach(this)
         enableEdgeToEdge()
         // Protect first frame, before asynchronous security preferences have loaded.
         window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
@@ -90,12 +91,16 @@ class MainActivity : FragmentActivity() {
                 when {
                     recoveryFailed || recoveryBlocked -> Surface(Modifier.fillMaxSize()) { androidx.compose.material3.Text(getString(R.string.restore_startup_failed)) }
                     !recovered || state == null || covered -> Surface(Modifier.fillMaxSize()) {}
-                    state.mode != AppLockMode.OFF && session.locked -> LockScreen(container.userPreferencesRepository, state.mode) { session.locked = false }
+                    state.mode != AppLockMode.OFF && session.locked -> LockScreen(container.userPreferencesRepository, state.mode) { deviceAuthenticationSucceeded() }
                     else -> GharHisabNavHost(container, navigation)
                 }
             }
             }
         }
+    }
+    fun deviceAuthenticationSucceeded() {
+        session.backgroundAt = null
+        session.locked = false
     }
     override fun onStop() {
         super.onStop()

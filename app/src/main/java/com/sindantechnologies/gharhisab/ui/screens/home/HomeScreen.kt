@@ -4,7 +4,12 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -61,6 +66,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -89,7 +95,7 @@ import java.util.Locale
 /**
  * Modern, responsive Home Dashboard screen for GharHisab.
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun HomeScreen(
     viewModel: HomeViewModel,
@@ -156,16 +162,21 @@ fun HomeScreen(
                 ),
             )
         },
-        floatingActionButton = {
-            FloatingActionButton(
-                onClick = onNavigateToAddTransaction,
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary,
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.Add,
-                    contentDescription = stringResource(R.string.home_add_transaction),
-                )
+        bottomBar = {
+            // Reserve layout space for the add action; a floating button covered history
+            // links and transaction rows on smaller screens after scrolling.
+            androidx.compose.material3.Surface(color = MaterialTheme.colorScheme.background, tonalElevation = 2.dp) {
+                Button(
+                    onClick = onNavigateToAddTransaction,
+                    modifier = Modifier.fillMaxWidth().navigationBarsPadding()
+                        .padding(horizontal = Dimens.SpacingLg, vertical = Dimens.SpacingSm)
+                        .heightIn(min = 52.dp),
+                    shape = RoundedCornerShape(16.dp),
+                ) {
+                    Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.home_add_transaction))
+                    Spacer(Modifier.width(Dimens.SpacingSm))
+                    Text(stringResource(R.string.home_add_transaction))
+                }
             }
         },
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
@@ -177,7 +188,6 @@ fun HomeScreen(
                 .padding(paddingValues)
                 .verticalScroll(rememberScrollState()),
         ) {
-            uiState.forecast?.let { FinancialInsightsCard(it) }
             // Quick Actions Bar
             LazyRow(
                 modifier = Modifier
@@ -224,120 +234,47 @@ fun HomeScreen(
 
             Spacer(modifier = Modifier.height(Dimens.SpacingSm))
 
-            // Summary Cards Row (Income, Expense, Net Monthly Cash Flow)
-            Row(
+            // Let summaries grow vertically on narrow screens and with larger system text.
+            BoxWithConstraints(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = Dimens.SpacingLg),
-                horizontalArrangement = Arrangement.spacedBy(Dimens.SpacingSm),
             ) {
-                SummaryCard(
-                    title = stringResource(R.string.home_income),
-                    amount = CurrencyFormatter.formatPaisa(uiState.totalIncome),
-                    icon = Icons.AutoMirrored.Filled.TrendingUp,
-                    iconTint = if (isDarkTheme) IncomeGreenLight else IncomeGreen,
-                    modifier = Modifier.weight(1f),
-                )
-                SummaryCard(
-                    title = stringResource(R.string.home_expense),
-                    amount = CurrencyFormatter.formatPaisa(uiState.totalExpense),
-                    icon = Icons.AutoMirrored.Filled.TrendingDown,
-                    iconTint = if (isDarkTheme) ExpenseRedLight else ExpenseRed,
-                    modifier = Modifier.weight(1f),
-                )
-                SummaryCard(
-                    title = "Net Flow",
-                    amount = CurrencyFormatter.formatPaisa(uiState.netMonthlyCashFlow),
-                    icon = Icons.Filled.AccountBalanceWallet,
-                    iconTint = if (isDarkTheme) BalanceBlueLight else BalanceBlue,
-                    modifier = Modifier.weight(1f),
-                )
+                val stacked = maxWidth < 340.dp || LocalDensity.current.fontScale > 1.25f
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(Dimens.SpacingSm),
+                    verticalArrangement = Arrangement.spacedBy(Dimens.SpacingSm),
+                    maxItemsInEachRow = if (stacked) 1 else 3,
+                ) {
+                    SummaryCard(
+                        title = stringResource(R.string.home_income),
+                        amount = CurrencyFormatter.formatPaisa(uiState.totalIncome),
+                        icon = Icons.AutoMirrored.Filled.TrendingUp,
+                        iconTint = if (isDarkTheme) IncomeGreenLight else IncomeGreen,
+                        modifier = Modifier.weight(1f),
+                    )
+                    SummaryCard(
+                        title = stringResource(R.string.home_expense),
+                        amount = CurrencyFormatter.formatPaisa(uiState.totalExpense),
+                        icon = Icons.AutoMirrored.Filled.TrendingDown,
+                        iconTint = if (isDarkTheme) ExpenseRedLight else ExpenseRed,
+                        modifier = Modifier.weight(1f),
+                    )
+                    SummaryCard(
+                        title = "Net Flow",
+                        amount = CurrencyFormatter.formatPaisa(uiState.netMonthlyCashFlow),
+                        icon = Icons.Filled.AccountBalanceWallet,
+                        iconTint = if (isDarkTheme) BalanceBlueLight else BalanceBlue,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(Dimens.SpacingMd))
 
-            // Daily Safe-to-Spend Recommendation Card
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = Dimens.SpacingLg),
-                shape = RoundedCornerShape(Dimens.RadiusLg),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                elevation = CardDefaults.cardElevation(defaultElevation = Dimens.ElevationMd)
-            ) {
-                Column(modifier = Modifier.padding(Dimens.SpacingLg)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Filled.Savings,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(Dimens.IconMd)
-                            )
-                            Spacer(modifier = Modifier.width(Dimens.SpacingSm))
-                            Text(
-                                text = "Daily Spending Limit",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
-                        Text(
-                            text = "${uiState.dailyRecommendation.remainingDays} days left",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(Dimens.SpacingSm))
-
-                    Text(
-                        text = CurrencyFormatter.formatPaisaCompact(uiState.dailyRecommendation.dailyLimitPaisa),
-                        style = MaterialTheme.typography.headlineMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = if (uiState.dailyRecommendation.isDeficit) ExpenseRed else MaterialTheme.colorScheme.primary
-                    )
-
-                    Text(
-                        text = "Suggested safe-to-spend per day based on available funds and upcoming commitments.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-
-                    Spacer(modifier = Modifier.height(Dimens.SpacingSm))
-
-                    // Contextual breakdown
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(
-                            text = "Spendable: ${CurrencyFormatter.formatPaisa(uiState.dailyRecommendation.spendableFundsPaisa)}",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Text(
-                            text = "Upcoming: ${CurrencyFormatter.formatPaisa(uiState.dailyRecommendation.upcomingPlannedCommitmentsPaisa)}",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-
-                    if (uiState.dailyRecommendation.warningMessage != null) {
-                        Spacer(modifier = Modifier.height(Dimens.SpacingXs))
-                        Text(
-                            text = uiState.dailyRecommendation.warningMessage!!,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = if (uiState.dailyRecommendation.isDeficit) ExpenseRed else Color(0xFFFFA000),
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
-                }
-            }
+            // One clear spending guide replaces the duplicated daily-limit cards.
+            uiState.forecast?.let { FinancialInsightsCard(it) }
 
             Spacer(modifier = Modifier.height(Dimens.SpacingMd))
 
@@ -357,7 +294,10 @@ fun HomeScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        Row(
+                            modifier = Modifier.weight(1f),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
                             Icon(
                                 imageVector = Icons.Filled.PieChart,
                                 contentDescription = null,
@@ -398,9 +338,9 @@ fun HomeScreen(
                             trackColor = MaterialTheme.colorScheme.surface
                         )
                         Spacer(modifier = Modifier.height(Dimens.SpacingXs))
-                        Row(
+                        Column(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
+                            verticalArrangement = Arrangement.spacedBy(Dimens.SpacingXs),
                         ) {
                             Text(
                                 text = "Spent: ${CurrencyFormatter.formatPaisa(uiState.totalExpense)} / ${CurrencyFormatter.formatPaisa(uiState.overallBudget!!.amount)}",

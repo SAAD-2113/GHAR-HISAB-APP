@@ -1,7 +1,6 @@
 package com.sindantechnologies.gharhisab.ui.screens.transaction
 
 import android.Manifest
-import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
@@ -17,7 +16,6 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -40,7 +38,6 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MicOff
 import androidx.compose.material.icons.filled.Warning
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -57,7 +54,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -84,10 +80,13 @@ import com.sindantechnologies.gharhisab.ui.theme.IncomeGreen
 import com.sindantechnologies.gharhisab.util.Constants
 import com.sindantechnologies.gharhisab.util.CurrencyFormatter
 import com.sindantechnologies.gharhisab.util.IconMapper
+import com.sindantechnologies.gharhisab.util.VoiceEntryDraft
+import com.sindantechnologies.gharhisab.R
+import androidx.compose.ui.res.stringResource
+import kotlinx.coroutines.CancellationException
 import com.sindantechnologies.gharhisab.util.ParsedVoiceTransaction
 import com.sindantechnologies.gharhisab.util.VoiceTransactionParser
 import kotlinx.coroutines.launch
-import java.util.Locale
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -100,17 +99,19 @@ fun VoiceEntryDialog(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
-    var selectedVoiceLanguage by remember { mutableStateOf("en") } // "en", "ur", "pa"
+    var selectedVoiceLanguage by remember { mutableStateOf(context.resources.configuration.locales[0].language.takeIf { it in listOf("en", "ur", "pa") } ?: "en") } // "en", "ur", "pa"
     var isListening by remember { mutableStateOf(false) }
+    var isRecognizing by remember { mutableStateOf(false) }
     var recognizedText by remember { mutableStateOf("") }
     var parsedTransaction by remember { mutableStateOf<ParsedVoiceTransaction?>(null) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
     // Confirmation form state
-    var editType by remember { mutableStateOf(TransactionType.EXPENSE) }
-    var editAmountText by remember { mutableStateOf("") }
-    var editCategory by remember { mutableStateOf<CategoryEntity?>(null) }
-    var editDescription by remember { mutableStateOf("") }
+    var draft by remember { mutableStateOf(VoiceEntryDraft()) }
+    val editType = draft.type
+    val editAmountText = draft.amountText
+    val editCategory = draft.category
+    val editDescription = draft.description
     var isSaving by remember { mutableStateOf(false) }
 
     // Check permission
@@ -154,8 +155,8 @@ fun VoiceEntryDialog(
 
         errorMessage = null
         recognizedText = ""
-        parsedTransaction = null
         isListening = true
+        isRecognizing = true
 
         val bcp47 = when (selectedVoiceLanguage) {
             "ur" -> "ur-PK"
@@ -167,7 +168,6 @@ fun VoiceEntryDialog(
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
             putExtra(RecognizerIntent.EXTRA_LANGUAGE, bcp47)
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, bcp47)
-            putExtra(RecognizerIntent.EXTRA_ONLY_RETURN_LANGUAGE_PREFERENCE, bcp47)
             putExtra(RecognizerIntent.EXTRA_PROMPT, "Speak your transaction...")
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
         }
@@ -187,9 +187,12 @@ fun VoiceEntryDialog(
 
             override fun onError(error: Int) {
                 isListening = false
+                isRecognizing = false
                 errorMessage = when (error) {
-                    SpeechRecognizer.ERROR_NO_MATCH -> "No speech detected. Please speak clearly and try again."
-                    SpeechRecognizer.ERROR_NETWORK -> "Network required for selected speech model. Check your connection."
+                    SpeechRecognizer.ERROR_LANGUAGE_NOT_SUPPORTED -> context.getString(R.string.voice_language_unsupported)
+                    SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE -> context.getString(R.string.voice_language_unavailable)
+                    SpeechRecognizer.ERROR_NO_MATCH, SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "No speech detected. Please speak clearly and try again."
+                    SpeechRecognizer.ERROR_NETWORK, SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "Network required for selected speech model. Check your connection."
                     SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "Microphone permission was denied."
                     else -> "Could not capture voice input. Please try again or enter manually."
                 }
@@ -197,16 +200,14 @@ fun VoiceEntryDialog(
 
             override fun onResults(results: Bundle?) {
                 isListening = false
+                isRecognizing = false
                 val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                 val text = matches?.firstOrNull()
                 if (!text.isNullOrBlank()) {
                     recognizedText = text
                     val parsed = VoiceTransactionParser.parse(text, categories, selectedVoiceLanguage)
                     parsedTransaction = parsed
-                    editType = parsed.type
-                    editAmountText = parsed.amountPaisa?.let { (it / 100L).toString() } ?: ""
-                    editCategory = parsed.matchedCategory ?: categories.firstOrNull { it.transactionType == parsed.type }
-                    editDescription = parsed.description
+                    draft = draft.merge(parsed)
                 } else {
                     errorMessage = "Could not recognize speech. Please try again."
                 }
@@ -220,7 +221,12 @@ fun VoiceEntryDialog(
             override fun onEvent(eventType: Int, params: Bundle?) {}
         })
 
-        speechRecognizer.startListening(intent)
+        try { speechRecognizer.startListening(intent) }
+        catch (_: Exception) {
+            isListening = false
+            isRecognizing = false
+            errorMessage = context.getString(R.string.operation_failed)
+        }
     }
 
     DisposableEffect(Unit) {
@@ -241,7 +247,7 @@ fun VoiceEntryDialog(
     )
 
     Dialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = { if (!isSaving) onDismiss() },
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
         Surface(
@@ -268,7 +274,7 @@ fun VoiceEntryDialog(
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface
                     )
-                    IconButton(onClick = onDismiss) {
+                    IconButton(onClick = onDismiss, enabled = !isSaving) {
                         Icon(Icons.Filled.Close, contentDescription = "Close")
                     }
                 }
@@ -282,29 +288,32 @@ fun VoiceEntryDialog(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Spacer(modifier = Modifier.height(Dimens.SpacingXs))
-                Row(
+                FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(Dimens.SpacingSm),
                     modifier = Modifier.padding(bottom = Dimens.SpacingSm)
                 ) {
                     FilterChip(
                         selected = selectedVoiceLanguage == "en",
-                        onClick = { selectedVoiceLanguage = "en" },
+                        onClick = { selectedVoiceLanguage = "en" }, enabled = !isRecognizing && !isSaving,
                         label = { Text("English") }
                     )
                     FilterChip(
                         selected = selectedVoiceLanguage == "ur",
-                        onClick = { selectedVoiceLanguage = "ur" },
+                        onClick = { selectedVoiceLanguage = "ur" }, enabled = !isRecognizing && !isSaving,
                         label = { Text("اردو (Urdu)") }
                     )
                     FilterChip(
                         selected = selectedVoiceLanguage == "pa",
-                        onClick = { selectedVoiceLanguage = "pa" },
+                        onClick = { selectedVoiceLanguage = "pa" }, enabled = !isRecognizing && !isSaving,
                         label = { Text("ਪੰਜਾਬੀ (Punjabi)") }
                     )
                 }
 
                 Spacer(modifier = Modifier.height(Dimens.SpacingMd))
 
+                Text(stringResource(R.string.voice_incremental_hint), style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
+                Spacer(modifier = Modifier.height(Dimens.SpacingMd))
                 // Microphone Button with Pulse
                 Box(contentAlignment = Alignment.Center) {
                     if (isListening) {
@@ -320,6 +329,7 @@ fun VoiceEntryDialog(
                     }
 
                     Surface(
+                        enabled = !isSaving && (!isRecognizing || isListening),
                         onClick = {
                             if (isListening) {
                                 speechRecognizer?.stopListening()
@@ -346,7 +356,11 @@ fun VoiceEntryDialog(
 
                 Spacer(modifier = Modifier.height(Dimens.SpacingSm))
                 Text(
-                    text = if (isListening) "Listening... speak now" else "Tap microphone to speak",
+                    text = when {
+                        isListening -> "Listening... speak now"
+                        isRecognizing -> stringResource(R.string.voice_processing)
+                        else -> "Tap microphone to speak"
+                    },
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.Medium,
                     color = if (isListening) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
@@ -415,14 +429,16 @@ fun VoiceEntryDialog(
                     SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
                         SegmentedButton(
                             selected = editType == TransactionType.EXPENSE,
-                            onClick = { editType = TransactionType.EXPENSE },
+                            onClick = { draft = draft.copy(type = TransactionType.EXPENSE, manualType = true, category = draft.category?.takeIf { it.transactionType == TransactionType.EXPENSE }) },
+                            enabled = !isSaving,
                             shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2)
                         ) {
                             Text("Expense")
                         }
                         SegmentedButton(
                             selected = editType == TransactionType.INCOME,
-                            onClick = { editType = TransactionType.INCOME },
+                            onClick = { draft = draft.copy(type = TransactionType.INCOME, manualType = true, category = draft.category?.takeIf { it.transactionType == TransactionType.INCOME }) },
+                            enabled = !isSaving,
                             shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2)
                         ) {
                             Text("Income")
@@ -434,7 +450,8 @@ fun VoiceEntryDialog(
                     // Amount input
                     OutlinedTextField(
                         value = editAmountText,
-                        onValueChange = { editAmountText = it },
+                        onValueChange = { draft = draft.copy(amountText = it, manualAmount = it.isNotBlank()) },
+                        enabled = !isSaving,
                         label = { Text("Amount") },
                         prefix = { Text("${Constants.CURRENCY_SYMBOL} ") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
@@ -446,7 +463,8 @@ fun VoiceEntryDialog(
                     // Description input
                     OutlinedTextField(
                         value = editDescription,
-                        onValueChange = { editDescription = it },
+                        onValueChange = { draft = draft.copy(description = it, manualDescription = it.isNotBlank()) },
+                        enabled = !isSaving,
                         label = { Text("Description") },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
@@ -470,7 +488,8 @@ fun VoiceEntryDialog(
                         filteredCategories.forEach { cat ->
                             FilterChip(
                                 selected = editCategory?.id == cat.id,
-                                onClick = { editCategory = cat },
+                                onClick = { draft = draft.copy(category = cat, manualCategory = true) },
+                                enabled = !isSaving,
                                 label = { Text(cat.name, style = MaterialTheme.typography.bodySmall) }
                             )
                         }
@@ -478,6 +497,13 @@ fun VoiceEntryDialog(
 
                     Spacer(modifier = Modifier.height(Dimens.SpacingLg))
 
+                    // Absolute dates require manual entry; never silently save them as today.
+                    if (draft.requiresManualDate) {
+                        Text(stringResource(R.string.voice_absolute_date_manual),
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodyMedium)
+                        Spacer(modifier = Modifier.height(Dimens.SpacingSm))
+                    }
                     // Confirm Save Button
                     Button(
                         onClick = {
@@ -491,21 +517,24 @@ fun VoiceEntryDialog(
                                         amount = amount,
                                         categoryId = cat.id,
                                         description = editDescription.ifBlank { cat.name },
-                                        timestamp = parsedTransaction?.timestamp ?: System.currentTimeMillis(),
+                                        timestamp = draft.timestamp ?: System.currentTimeMillis(),
                                         paymentMethod = PaymentMethod.CASH,
                                         createdAt = System.currentTimeMillis(),
                                         updatedAt = System.currentTimeMillis()
                                     )
-                                    onSaveTransaction(transaction)
-                                    isSaving = false
-                                    onDismiss()
+                                    try {
+                                        onSaveTransaction(transaction)
+                                        onDismiss()
+                                    } catch (cancelled: CancellationException) { throw cancelled }
+                                    catch (_: Exception) { errorMessage = context.getString(R.string.operation_failed) }
+                                    finally { isSaving = false }
                                 }
                             } else {
                                 errorMessage = "Please provide a valid amount and category."
                             }
                         },
                         modifier = Modifier.fillMaxWidth(),
-                        enabled = !isSaving && editAmountText.isNotBlank() && editCategory != null
+                        enabled = !isSaving && !isRecognizing && !draft.requiresManualDate && (CurrencyFormatter.parseRupeesToPaisa(editAmountText) ?: 0) > 0 && editCategory?.transactionType == editType
                     ) {
                         Text(if (isSaving) "Saving..." else "Confirm & Save")
                     }
@@ -515,6 +544,7 @@ fun VoiceEntryDialog(
 
                 // Fallback to manual entry
                 TextButton(
+                    enabled = !isSaving,
                     onClick = {
                         onDismiss()
                         onFallbackManualEntry()

@@ -61,8 +61,7 @@ fun StorageSelectionScreen(
     if (showDialog) {
         ComingSoonDialog(
             onContinueLocal = {
-                viewModel.continueWithLocal()
-                onContinue()
+                viewModel.continueWithLocal(onContinue)
             },
             onDismiss = { viewModel.dismissDialog() },
         )

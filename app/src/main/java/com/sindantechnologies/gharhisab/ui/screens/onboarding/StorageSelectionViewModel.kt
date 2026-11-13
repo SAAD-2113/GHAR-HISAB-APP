@@ -42,12 +42,13 @@ class StorageSelectionViewModel(
     }
 
     /** Continues with local storage from the Coming Soon dialog. */
-    fun continueWithLocal() {
+    fun continueWithLocal(navigateForward: () -> Unit) {
         _showComingSoonDialog.value = false
         _selectedStorage.value = StorageOption.LOCAL
         viewModelScope.launch {
             repository.setStorageOption(StorageOption.LOCAL)
             repository.setOnboardingComplete()
+            navigateForward()
         }
     }
 

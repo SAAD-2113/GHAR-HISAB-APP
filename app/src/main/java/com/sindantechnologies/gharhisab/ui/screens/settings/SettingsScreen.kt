@@ -67,6 +67,7 @@ import com.sindantechnologies.gharhisab.domain.model.AppLockMode
 import com.sindantechnologies.gharhisab.domain.model.AppLockTimeout
 import com.sindantechnologies.gharhisab.domain.model.Language
 import com.sindantechnologies.gharhisab.domain.model.ThemeMode
+import com.sindantechnologies.gharhisab.util.security.SecurityUtils
 import com.sindantechnologies.gharhisab.util.security.BiometricAuthManager
 import com.sindantechnologies.gharhisab.ui.components.SettingsGroup
 import com.sindantechnologies.gharhisab.ui.components.SettingsItem
@@ -97,25 +98,21 @@ fun SettingsScreen(
     val currentLockMode by userPreferencesRepository.appLockModeFlow.collectAsStateWithLifecycle(initialValue = AppLockMode.OFF)
     val currentLockTimeout by userPreferencesRepository.appLockTimeoutFlow.collectAsStateWithLifecycle(initialValue = AppLockTimeout.IMMEDIATE)
 
+    val settingsActivity = com.sindantechnologies.gharhisab.util.security.findActivity(LocalContext.current) as? com.sindantechnologies.gharhisab.MainActivity ?: return
+    val securityUi = settingsActivity.external
     var showLanguageDialog by remember { mutableStateOf(false) }
     var showThemeDialog by remember { mutableStateOf(false) }
     var showStartingBalanceDialog by remember { mutableStateOf(false) }
     var showProtectedReserveDialog by remember { mutableStateOf(false) }
-    var showLockModeDialog by remember { mutableStateOf(false) }
-    var showPinSetupDialog by remember { mutableStateOf(false) }
-    var showRollback by remember { mutableStateOf(false) }
-    var rollbackBusy by remember { mutableStateOf(false) }
-    var showTimeoutDialog by remember { mutableStateOf(false) }
 
     var pendingSecurityAction by remember { mutableStateOf<(() -> Unit)?>(null) }
-    var recoveryKey by remember { mutableStateOf<String?>(null) }
     val securityContext = LocalContext.current
     fun authenticate(action: () -> Unit) {
         when (currentLockMode) {
             AppLockMode.OFF -> action()
             AppLockMode.PIN -> pendingSecurityAction = action
             AppLockMode.BIOMETRIC -> com.sindantechnologies.gharhisab.util.security.findActivity(securityContext)?.let {
-                BiometricAuthManager.promptAuthentication(it, onSuccess = action, onError = { scope.launch { snackbarHostState.showSnackbar(securityContext.getString(R.string.lock_failed)) } })
+                BiometricAuthManager.promptAuthentication(it, onSuccess = { settingsActivity.deviceAuthenticationSucceeded(); action() }, onError = { securityUi.reportSecurityFailure() })
             }
         }
     }
@@ -123,9 +120,9 @@ fun SettingsScreen(
         var pin by remember { mutableStateOf("") }
         var busy by remember { mutableStateOf(false) }
         var failed by remember { mutableStateOf(false) }
-        AlertDialog(onDismissRequest = { pendingSecurityAction = null }, title = { Text(stringResource(R.string.lock_unlock)) },
-            text = { Column {
-                OutlinedTextField(pin, { pin = it }, visualTransformation = PasswordVisualTransformation(), label = { Text(stringResource(R.string.lock_pin)) })
+        AlertDialog(onDismissRequest = { if (!busy) pendingSecurityAction = null }, title = { Text(stringResource(R.string.lock_unlock)) },
+            text = { Column(Modifier.verticalScroll(rememberScrollState())) {
+                OutlinedTextField(pin, { pin = SecurityUtils.normalizePinDigits(it).take(4) }, enabled = !busy, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword), visualTransformation = PasswordVisualTransformation(), label = { Text(stringResource(R.string.lock_pin)) })
                 if (failed) Text(stringResource(R.string.lock_failed))
             } }, confirmButton = { Button(enabled = !busy, onClick = {
                 busy = true
@@ -137,20 +134,26 @@ fun SettingsScreen(
                 }
             }) { Text(stringResource(R.string.action_ok)) } })
     }
-    recoveryKey?.let { key -> AlertDialog(onDismissRequest = {}, title = { Text(stringResource(R.string.recovery_key)) },
-        text = { Column { Text(stringResource(R.string.recovery_save)); androidx.compose.foundation.text.selection.SelectionContainer { Text(key) } } },
-        confirmButton = { TextButton(onClick = { recoveryKey = null }) { Text(stringResource(R.string.recovery_saved)) } }) }
+    securityUi.recoveryKey?.let { key -> AlertDialog(onDismissRequest = {}, title = { Text(stringResource(R.string.recovery_key)) },
+        text = { Column(Modifier.verticalScroll(rememberScrollState())) { Text(stringResource(R.string.recovery_save)); Spacer(Modifier.height(Dimens.SpacingSm)); Text(stringResource(R.string.security_recovery_help)); Spacer(Modifier.height(Dimens.SpacingMd)); androidx.compose.foundation.text.selection.SelectionContainer { Text(key) } } },
+        confirmButton = { TextButton(onClick = { securityUi.recoveryKey = null }) { Text(stringResource(R.string.recovery_saved)) } }) }
 
-    if (showRollback) AlertDialog(onDismissRequest = { if (!rollbackBusy) showRollback = false }, title = { Text(stringResource(R.string.backup_rollback)) },
-        text = { Text(stringResource(R.string.backup_replace_warning)) }, confirmButton = { TextButton(enabled = !rollbackBusy, onClick = {
-            rollbackBusy = true
-            scope.launch {
-                try { backupManager.rollbackSafetyBackup(); snackbarHostState.showSnackbar(securityContext.getString(R.string.backup_restored)) }
-                catch (_: Exception) { snackbarHostState.showSnackbar(securityContext.getString(R.string.operation_failed)) }
-                showRollback = false
-                rollbackBusy = false
-            }
-        }) { Text(stringResource(R.string.action_ok)) } }, dismissButton = { TextButton(enabled = !rollbackBusy, onClick = { showRollback = false }) { Text(stringResource(R.string.action_cancel)) } })
+    if (securityUi.showRollback) AlertDialog(onDismissRequest = { if (!securityUi.rollbackBusy) securityUi.showRollback = false }, title = { Text(stringResource(R.string.backup_rollback)) },
+        text = { Text(stringResource(R.string.backup_replace_warning)) }, confirmButton = { TextButton(enabled = !securityUi.rollbackBusy, onClick = {
+            securityUi.rollback { backupManager.rollbackSafetyBackup() }
+        }) { Text(stringResource(R.string.action_ok)) } }, dismissButton = { TextButton(enabled = !securityUi.rollbackBusy, onClick = { securityUi.showRollback = false }) { Text(stringResource(R.string.action_cancel)) } })
+
+    securityUi.rollbackNotice?.let { notice ->
+        androidx.compose.runtime.LaunchedEffect(notice) {
+            snackbarHostState.showSnackbar(securityContext.getString(notice))
+            securityUi.dismissRollbackNotice()
+        }
+    }
+
+    if (securityUi.securityFailed) androidx.compose.runtime.LaunchedEffect(securityUi.securityFailed) {
+        snackbarHostState.showSnackbar(securityContext.getString(R.string.operation_failed))
+        securityUi.dismissSecurityFailure()
+    }
 
     // Language Dialog
     if (showLanguageDialog) {
@@ -159,7 +162,7 @@ fun SettingsScreen(
             onDismissRequest = { showLanguageDialog = false },
             title = { Text(stringResource(R.string.language_selection_title)) },
             text = {
-                Column {
+                Column(Modifier.verticalScroll(rememberScrollState())) {
                     Language.entries.forEach { lang ->
                         Row(
                             modifier = Modifier
@@ -205,7 +208,7 @@ fun SettingsScreen(
             onDismissRequest = { showThemeDialog = false },
             title = { Text(stringResource(R.string.theme_selection_title)) },
             text = {
-                Column {
+                Column(Modifier.verticalScroll(rememberScrollState())) {
                     ThemeMode.entries.forEach { theme ->
                         Row(
                             modifier = Modifier
@@ -245,12 +248,12 @@ fun SettingsScreen(
 
     // Starting Balance Dialog
     if (showStartingBalanceDialog) {
-        var balanceText by remember { mutableStateOf(if (startingBalance > 0L) (startingBalance / 100L).toString() else "") }
+        var balanceText by remember { mutableStateOf(if (startingBalance > 0L) CurrencyFormatter.formatPaisaRaw(startingBalance) else "") }
         AlertDialog(
             onDismissRequest = { showStartingBalanceDialog = false },
             title = { Text("Starting Available Balance") },
             text = {
-                Column {
+                Column(Modifier.verticalScroll(rememberScrollState())) {
                     Text(
                         text = "Enter your current available balance (cash, bank, wallets). Used for calculating your daily safe-to-spend limit.",
                         style = MaterialTheme.typography.bodySmall,
@@ -262,14 +265,14 @@ fun SettingsScreen(
                         onValueChange = { balanceText = it },
                         label = { Text("Available Cash / Balance") },
                         prefix = { Text("${Constants.CURRENCY_SYMBOL} ") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
             },
             confirmButton = {
-                Button(onClick = {
-                    val paisa = CurrencyFormatter.parseRupeesToPaisa(balanceText) ?: 0L
+                Button(enabled = balanceText.isBlank() || CurrencyFormatter.parseRupeesToPaisa(balanceText) != null, onClick = {
+                    val paisa = if (balanceText.isBlank()) 0L else CurrencyFormatter.parseRupeesToPaisa(balanceText) ?: return@Button
                     scope.launch {
                         userPreferencesRepository.setStartingBalance(paisa)
                         showStartingBalanceDialog = false
@@ -287,12 +290,12 @@ fun SettingsScreen(
 
     // Protected Reserve Dialog
     if (showProtectedReserveDialog) {
-        var reserveText by remember { mutableStateOf(if (protectedReserve > 0L) (protectedReserve / 100L).toString() else "") }
+        var reserveText by remember { mutableStateOf(if (protectedReserve > 0L) CurrencyFormatter.formatPaisaRaw(protectedReserve) else "") }
         AlertDialog(
             onDismissRequest = { showProtectedReserveDialog = false },
             title = { Text("Protected Emergency Reserve") },
             text = {
-                Column {
+                Column(Modifier.verticalScroll(rememberScrollState())) {
                     Text(
                         text = "Minimum emergency amount you wish to protect and never spend in your daily budget.",
                         style = MaterialTheme.typography.bodySmall,
@@ -304,14 +307,14 @@ fun SettingsScreen(
                         onValueChange = { reserveText = it },
                         label = { Text("Protected Reserve Amount") },
                         prefix = { Text("${Constants.CURRENCY_SYMBOL} ") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
             },
             confirmButton = {
-                Button(onClick = {
-                    val paisa = CurrencyFormatter.parseRupeesToPaisa(reserveText) ?: 0L
+                Button(enabled = reserveText.isBlank() || CurrencyFormatter.parseRupeesToPaisa(reserveText) != null, onClick = {
+                    val paisa = if (reserveText.isBlank()) 0L else CurrencyFormatter.parseRupeesToPaisa(reserveText) ?: return@Button
                     scope.launch {
                         userPreferencesRepository.setProtectedReserve(paisa)
                         showProtectedReserveDialog = false
@@ -330,13 +333,13 @@ fun SettingsScreen(
     val context = LocalContext.current
 
     // App Lock Mode Dialog
-    if (showLockModeDialog) {
+    if (securityUi.showLockModeDialog) {
         var tempMode by remember { mutableStateOf(currentLockMode) }
         AlertDialog(
-            onDismissRequest = { showLockModeDialog = false },
+            onDismissRequest = { securityUi.showLockModeDialog = false },
             title = { Text("Application Security") },
             text = {
-                Column {
+                Column(Modifier.verticalScroll(rememberScrollState())) {
                     AppLockMode.entries.forEach { mode ->
                         Row(
                             modifier = Modifier
@@ -360,7 +363,7 @@ fun SettingsScreen(
             },
             confirmButton = {
                 Button(onClick = {
-                    showLockModeDialog = false
+                    securityUi.showLockModeDialog = false
                     when (tempMode) {
                         AppLockMode.OFF -> {
                             scope.launch {
@@ -369,14 +372,15 @@ fun SettingsScreen(
                             }
                         }
                         AppLockMode.PIN -> {
-                            showPinSetupDialog = true
+                            securityUi.showPinSetupDialog = true
                         }
                         AppLockMode.BIOMETRIC -> {
                             if (BiometricAuthManager.canAuthenticate(context)) {
                                 com.sindantechnologies.gharhisab.util.security.findActivity(context)?.let { activity ->
                                     BiometricAuthManager.promptAuthentication(activity, onSuccess = {
-                                        scope.launch { userPreferencesRepository.setAppLockMode(AppLockMode.BIOMETRIC) }
-                                    }, onError = { scope.launch { snackbarHostState.showSnackbar(context.getString(R.string.lock_failed)) } })
+                                        settingsActivity.deviceAuthenticationSucceeded()
+                                        securityUi.enableDeviceLock(userPreferencesRepository)
+                                    }, onError = { securityUi.reportSecurityFailure() })
                                 }
                             } else {
                                 scope.launch {
@@ -390,25 +394,26 @@ fun SettingsScreen(
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showLockModeDialog = false }) { Text("Cancel") }
+                TextButton(onClick = { securityUi.showLockModeDialog = false }) { Text("Cancel") }
             }
         )
     }
 
     // PIN Setup Dialog
-    if (showPinSetupDialog) {
+    if (securityUi.showPinSetupDialog) {
         var pin by remember { mutableStateOf("") }
         var confirmPin by remember { mutableStateOf("") }
         var pinError by remember { mutableStateOf<String?>(null) }
 
         AlertDialog(
-            onDismissRequest = { showPinSetupDialog = false },
+            onDismissRequest = { if (!securityUi.securityBusy) securityUi.showPinSetupDialog = false },
             title = { Text("Set 4-Digit Security PIN") },
             text = {
-                Column {
+                Column(Modifier.verticalScroll(rememberScrollState())) {
                     OutlinedTextField(
                         value = pin,
-                        onValueChange = { if (it.length <= 4 && it.all { c -> c.isDigit() }) pin = it },
+                        onValueChange = { value -> val normalized = SecurityUtils.normalizePinDigits(value); if (normalized.length <= 4 && normalized.all { it in '0'..'9' }) pin = normalized },
+                        enabled = !securityUi.securityBusy,
                         label = { Text("Enter 4-Digit PIN") },
                         visualTransformation = PasswordVisualTransformation(),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
@@ -417,7 +422,8 @@ fun SettingsScreen(
                     Spacer(modifier = Modifier.height(Dimens.SpacingSm))
                     OutlinedTextField(
                         value = confirmPin,
-                        onValueChange = { if (it.length <= 4 && it.all { c -> c.isDigit() }) confirmPin = it },
+                        onValueChange = { value -> val normalized = SecurityUtils.normalizePinDigits(value); if (normalized.length <= 4 && normalized.all { it in '0'..'9' }) confirmPin = normalized },
+                        enabled = !securityUi.securityBusy,
                         label = { Text("Confirm PIN") },
                         visualTransformation = PasswordVisualTransformation(),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
@@ -428,36 +434,32 @@ fun SettingsScreen(
                 }
             },
             confirmButton = {
-                Button(onClick = {
+                Button(enabled = !securityUi.securityBusy, onClick = {
                     if (pin.length != 4) {
                         pinError = "PIN must be exactly 4 digits"
                     } else if (pin != confirmPin) {
                         pinError = "PINs do not match"
                     } else {
-                        scope.launch {
-                            recoveryKey = userPreferencesRepository.setAppLockPin(pin)
-                            showPinSetupDialog = false
-                            snackbarHostState.showSnackbar("Security PIN set successfully")
-                        }
+                        securityUi.createPin(userPreferencesRepository, pin)
                     }
                 }) {
-                    Text("Save PIN")
+                    Text(stringResource(if (securityUi.securityBusy) R.string.security_verifying else R.string.security_save_pin))
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showPinSetupDialog = false }) { Text("Cancel") }
+                TextButton(enabled = !securityUi.securityBusy, onClick = { securityUi.showPinSetupDialog = false }) { Text("Cancel") }
             }
         )
     }
 
     // Auto-lock Timeout Dialog
-    if (showTimeoutDialog) {
+    if (securityUi.showTimeoutDialog) {
         var tempTimeout by remember { mutableStateOf(currentLockTimeout) }
         AlertDialog(
-            onDismissRequest = { showTimeoutDialog = false },
+            onDismissRequest = { securityUi.showTimeoutDialog = false },
             title = { Text("Auto-lock Timeout") },
             text = {
-                Column {
+                Column(Modifier.verticalScroll(rememberScrollState())) {
                     AppLockTimeout.entries.forEach { timeout ->
                         Row(
                             modifier = Modifier
@@ -483,7 +485,7 @@ fun SettingsScreen(
                 Button(onClick = {
                     scope.launch {
                         userPreferencesRepository.setAppLockTimeout(tempTimeout)
-                        showTimeoutDialog = false
+                        securityUi.showTimeoutDialog = false
                         snackbarHostState.showSnackbar("Auto-lock timeout updated")
                     }
                 }) {
@@ -491,7 +493,7 @@ fun SettingsScreen(
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showTimeoutDialog = false }) { Text("Cancel") }
+                TextButton(onClick = { securityUi.showTimeoutDialog = false }) { Text("Cancel") }
             }
         )
     }
@@ -502,8 +504,8 @@ fun SettingsScreen(
     var showImportPasswordDialog by remember { mutableStateOf(false) }
     var selectedImportUri by remember { mutableStateOf<android.net.Uri?>(null) }
 
-    androidx.compose.runtime.LaunchedEffect(hostActivity?.external?.googleResult, hostActivity?.external?.googleCancelled) {
-        if (hostActivity?.external?.googleResult != null || hostActivity?.external?.googleCancelled == true) backupState.driveOpen = true
+    androidx.compose.runtime.LaunchedEffect(hostActivity?.external?.googleResult) {
+        if (hostActivity?.external?.googleResult != null) backupState.driveOpen = true
     }
     androidx.compose.runtime.LaunchedEffect(hostActivity?.external?.importUri) {
         hostActivity?.external?.importUri?.let { selectedImportUri = it; hostActivity.external.importUri = null; showImportPasswordDialog = true }
@@ -532,7 +534,7 @@ fun SettingsScreen(
             onDismissRequest = { showExportPasswordDialog = false },
             title = { Text("Encrypt & Export Backup") },
             text = {
-                Column {
+                Column(Modifier.verticalScroll(rememberScrollState())) {
                     Text(
                         text = "Choose a strong password to encrypt your financial backup using AES-256-GCM. You will need this password to restore your data.",
                         style = MaterialTheme.typography.bodySmall,
@@ -592,7 +594,7 @@ fun SettingsScreen(
             onDismissRequest = { if (!isRestoring) showImportPasswordDialog = false },
             title = { Text("Decrypt & Restore Backup") },
             text = {
-                Column {
+                Column(Modifier.verticalScroll(rememberScrollState())) {
                     Text(
                         text = "Enter the password used when creating this backup file.",
                         style = MaterialTheme.typography.bodySmall,
@@ -739,14 +741,14 @@ fun SettingsScreen(
                     icon = if (currentLockMode == AppLockMode.BIOMETRIC) Icons.Filled.Fingerprint else Icons.Filled.Lock,
                     title = "Application Lock",
                     value = currentLockMode.title,
-                    onClick = { authenticate { showLockModeDialog = true } },
+                    onClick = { authenticate { securityUi.showLockModeDialog = true } },
                 )
                 if (currentLockMode != AppLockMode.OFF) {
                     SettingsItem(
                         icon = Icons.Filled.Shield,
                         title = "Auto-lock Timeout",
                         value = currentLockTimeout.label,
-                        onClick = { authenticate { showTimeoutDialog = true } },
+                        onClick = { authenticate { securityUi.showTimeoutDialog = true } },
                     )
                 }
             }
@@ -758,7 +760,7 @@ fun SettingsScreen(
                 if (!backupState.driveOpen && backupState.notice.message == R.string.backup_restored) {
                     com.sindantechnologies.gharhisab.ui.screens.backup.BackupNotice(backupState.notice)
                 }
-                SettingsItem(icon = Icons.Filled.CloudDownload, title = stringResource(R.string.backup_rollback), value = "", onClick = { authenticate { showRollback = true } })
+                SettingsItem(icon = Icons.Filled.CloudDownload, title = stringResource(R.string.backup_rollback), value = "", onClick = { authenticate { securityUi.showRollback = true } })
                 SettingsItem(
                     icon = Icons.Filled.PhoneAndroid,
                     title = stringResource(R.string.settings_storage),

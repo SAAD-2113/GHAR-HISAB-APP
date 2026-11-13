@@ -27,7 +27,10 @@ private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(
  *
  * Provides reactive [Flow] access and suspend functions for updates.
  */
-class UserPreferencesRepository(private val context: Context) {
+class UserPreferencesRepository(
+    private val context: Context,
+    private val pinVerifier: com.sindantechnologies.gharhisab.util.security.PinVerifier = com.sindantechnologies.gharhisab.util.security.KeystorePinVerifier(),
+) {
 
     private object Keys {
         val LANGUAGE = stringPreferencesKey("language")
@@ -59,6 +62,7 @@ class UserPreferencesRepository(private val context: Context) {
         securityMutex.lock()
         try {
             var success = false
+            val candidate = if (recovery) pin else SecurityUtils.normalizePinDigits(pin)
             context.dataStore.edit { p ->
                 val now = System.currentTimeMillis()
                 val elapsed = android.os.SystemClock.elapsedRealtime()
@@ -70,13 +74,22 @@ class UserPreferencesRepository(private val context: Context) {
                     return@edit
                 }
                 if (elapsed < (p[Keys.BLOCKED_ELAPSED] ?: 0)) return@edit
-                success = SecurityUtils.verifyPin(pin, p[Keys.APP_LOCK_PIN_SALT].orEmpty(),
-                    if (recovery) p[Keys.RECOVERY_HASH].orEmpty() else p[Keys.APP_LOCK_PIN_HASH].orEmpty())
+                val salt = p[Keys.APP_LOCK_PIN_SALT].orEmpty()
+                val hash = p[Keys.APP_LOCK_PIN_HASH].orEmpty()
+                success = if (recovery) SecurityUtils.verifyRecoveryKey(candidate, salt, p[Keys.RECOVERY_HASH].orEmpty())
+                    else if (hash.startsWith(com.sindantechnologies.gharhisab.util.security.KeystorePinVerifier.PREFIX))
+                        runCatching { pinVerifier.matches(candidate, SecurityUtils.hexToBytes(salt), hash) }.getOrDefault(false)
+                    else SecurityUtils.verifyPin(candidate, salt, hash)
+                if (success && !recovery && !hash.startsWith(com.sindantechnologies.gharhisab.util.security.KeystorePinVerifier.PREFIX)) {
+                    // A legacy PIN pays the old PBKDF cost once, then uses the device-bound verifier.
+                    // If Keystore is unavailable, keep the working legacy verifier rather than lose access.
+                    runCatching { pinVerifier.create(candidate, SecurityUtils.hexToBytes(salt)) }.getOrNull()?.let { p[Keys.APP_LOCK_PIN_HASH] = it }
+                }
                 if (success) {
                     p[Keys.ATTEMPTS] = 0
                     p[Keys.BLOCKED_UNTIL] = 0
                     p[Keys.BLOCKED_ELAPSED] = 0
-                    if (recovery) { p[Keys.APP_LOCK_MODE] = AppLockMode.OFF.key; p.remove(Keys.RECOVERY_HASH); p.remove(Keys.APP_LOCK_PIN_HASH) }
+                    if (recovery) { p[Keys.APP_LOCK_MODE] = AppLockMode.OFF.key; p.remove(Keys.RECOVERY_HASH); p.remove(Keys.APP_LOCK_PIN_HASH); p.remove(Keys.APP_LOCK_PIN_SALT) }
                 } else {
                     val attempts = (p[Keys.ATTEMPTS] ?: 0) + 1
                     p[Keys.ATTEMPTS] = attempts
@@ -218,21 +231,26 @@ class UserPreferencesRepository(private val context: Context) {
 
     /** Securely hashes and persists a new user PIN. */
     suspend fun setAppLockPin(pin: String): String = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
-        require(pin.length == 4 && pin.all { it in '0'..'9' })
-        val recovery = SecurityUtils.bytesToHex(SecurityUtils.generateSalt(16))
-        val salt = SecurityUtils.generateSalt()
-        val saltHex = SecurityUtils.bytesToHex(salt)
-        val hashHex = SecurityUtils.hashPin(pin, salt)
-        context.dataStore.edit { prefs ->
-            prefs[Keys.APP_LOCK_PIN_SALT] = saltHex
-            prefs[Keys.APP_LOCK_PIN_HASH] = hashHex
-            prefs[Keys.APP_LOCK_MODE] = AppLockMode.PIN.key
-            prefs[Keys.RECOVERY_HASH] = SecurityUtils.hashPin(recovery, salt)
-            prefs[Keys.ATTEMPTS] = 0
-            prefs[Keys.BLOCKED_UNTIL] = 0
-            prefs[Keys.BLOCKED_ELAPSED] = 0
-        }
-        recovery
+        val normalizedPin = SecurityUtils.normalizePinDigits(pin)
+        require(normalizedPin.length == 4 && normalizedPin.all { it in '0'..'9' })
+        securityMutex.lock()
+        try {
+            val recovery = SecurityUtils.bytesToHex(SecurityUtils.generateSalt(16))
+            val salt = SecurityUtils.generateSalt()
+            // Keystore work is off the UI thread, and no expensive hash blocks DataStore readers.
+            val hash = pinVerifier.create(normalizedPin, salt)
+            val recoveryHash = SecurityUtils.hashRecoveryKey(recovery, salt)
+            context.dataStore.edit { prefs ->
+                prefs[Keys.APP_LOCK_PIN_SALT] = SecurityUtils.bytesToHex(salt)
+                prefs[Keys.APP_LOCK_PIN_HASH] = hash
+                prefs[Keys.APP_LOCK_MODE] = AppLockMode.PIN.key
+                prefs[Keys.RECOVERY_HASH] = recoveryHash
+                prefs[Keys.ATTEMPTS] = 0
+                prefs[Keys.BLOCKED_UNTIL] = 0
+                prefs[Keys.BLOCKED_ELAPSED] = 0
+            }
+            recovery
+        } finally { securityMutex.unlock() }
     }
 
     /** Disables app lock and clears security credentials. */
@@ -241,6 +259,10 @@ class UserPreferencesRepository(private val context: Context) {
             prefs[Keys.APP_LOCK_MODE] = AppLockMode.OFF.key
             prefs[Keys.APP_LOCK_PIN_SALT] = ""
             prefs[Keys.APP_LOCK_PIN_HASH] = ""
+            prefs.remove(Keys.RECOVERY_HASH)
+            prefs[Keys.ATTEMPTS] = 0
+            prefs[Keys.BLOCKED_ELAPSED] = 0
+            prefs[Keys.BLOCKED_UNTIL] = 0
         }
     }
 

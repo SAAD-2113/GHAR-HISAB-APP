@@ -81,17 +81,19 @@ fun BudgetScreen(
 
     if (showOverallBudgetDialog) {
         var amountText by remember {
-            mutableStateOf(uiState.overallBudget?.amount?.let { (it / 100L).toString() } ?: "")
+            mutableStateOf(uiState.overallBudget?.amount?.let { CurrencyFormatter.formatPaisaRaw(it) } ?: "")
         }
         var warningThresholdText by remember {
             mutableStateOf(uiState.overallBudget?.warningThresholdPercent?.toString() ?: "80")
         }
+        val amountPaisa = CurrencyFormatter.parseRupeesToPaisa(amountText)
+        val warningThreshold = warningThresholdText.toIntOrNull()
 
         AlertDialog(
             onDismissRequest = { showOverallBudgetDialog = false },
             title = { Text("Set Monthly Budget") },
             text = {
-                Column {
+                Column(Modifier.verticalScroll(rememberScrollState())) {
                     Text(
                         text = "Set overall spending limit for $monthName ${uiState.year}",
                         style = MaterialTheme.typography.bodySmall,
@@ -103,7 +105,7 @@ fun BudgetScreen(
                         onValueChange = { amountText = it },
                         label = { Text("Monthly Budget Amount") },
                         prefix = { Text("${Constants.CURRENCY_SYMBOL} ") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         modifier = Modifier.fillMaxWidth()
                     )
                     Spacer(modifier = Modifier.height(Dimens.SpacingSm))
@@ -112,6 +114,8 @@ fun BudgetScreen(
                         onValueChange = { warningThresholdText = it },
                         label = { Text("Warning Threshold (%)") },
                         suffix = { Text("%") },
+                        isError = warningThresholdText.isNotEmpty() && warningThreshold !in 1..100,
+                        supportingText = { Text("Choose a percentage from 1 to 100.") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -119,11 +123,10 @@ fun BudgetScreen(
             },
             confirmButton = {
                 Button(
+                    enabled = amountPaisa != null && amountPaisa > 0L && warningThreshold in 1..100,
                     onClick = {
-                        val paisa = CurrencyFormatter.parseRupeesToPaisa(amountText)
-                        val threshold = warningThresholdText.toIntOrNull() ?: 80
-                        if (paisa != null && paisa > 0L) {
-                            viewModel.setOverallBudget(paisa, threshold)
+                        if (amountPaisa != null && amountPaisa > 0L && warningThreshold in 1..100) {
+                            viewModel.setOverallBudget(amountPaisa, warningThreshold!!)
                             showOverallBudgetDialog = false
                         }
                     }
@@ -144,12 +147,14 @@ fun BudgetScreen(
         var chosenCategory by remember { mutableStateOf(selectedCategoryForBudget ?: uiState.expenseCategories.firstOrNull()) }
         var amountText by remember { mutableStateOf("") }
         var warningThresholdText by remember { mutableStateOf("80") }
+        val amountPaisa = CurrencyFormatter.parseRupeesToPaisa(amountText)
+        val warningThreshold = warningThresholdText.toIntOrNull()
 
         AlertDialog(
             onDismissRequest = { showCategoryBudgetDialog = false },
             title = { Text("Set Category Budget") },
             text = {
-                Column {
+                Column(Modifier.verticalScroll(rememberScrollState())) {
                     Text(
                         text = "Set category limit for $monthName ${uiState.year}",
                         style = MaterialTheme.typography.bodySmall,
@@ -193,7 +198,7 @@ fun BudgetScreen(
                         onValueChange = { amountText = it },
                         label = { Text("Category Budget Amount") },
                         prefix = { Text("${Constants.CURRENCY_SYMBOL} ") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         modifier = Modifier.fillMaxWidth()
                     )
                     Spacer(modifier = Modifier.height(Dimens.SpacingSm))
@@ -202,6 +207,8 @@ fun BudgetScreen(
                         onValueChange = { warningThresholdText = it },
                         label = { Text("Warning Threshold (%)") },
                         suffix = { Text("%") },
+                        isError = warningThresholdText.isNotEmpty() && warningThreshold !in 1..100,
+                        supportingText = { Text("Choose a percentage from 1 to 100.") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -209,12 +216,11 @@ fun BudgetScreen(
             },
             confirmButton = {
                 Button(
+                    enabled = chosenCategory != null && amountPaisa != null && amountPaisa > 0L && warningThreshold in 1..100,
                     onClick = {
                         val cat = chosenCategory
-                        val paisa = CurrencyFormatter.parseRupeesToPaisa(amountText)
-                        val threshold = warningThresholdText.toIntOrNull() ?: 80
-                        if (cat != null && paisa != null && paisa > 0L) {
-                            viewModel.setCategoryBudget(cat.id, paisa, threshold)
+                        if (cat != null && amountPaisa != null && amountPaisa > 0L && warningThreshold in 1..100) {
+                            viewModel.setCategoryBudget(cat.id, amountPaisa, warningThreshold!!)
                             showCategoryBudgetDialog = false
                         }
                     }

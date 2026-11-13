@@ -90,9 +90,23 @@ class TransactionsViewModel(
                     }
                     DateRangeFilter.LAST_30_DAYS -> now - (30L * 24 * 60 * 60 * 1000)
                 }
+                val maxTimestamp = when (filters.dateRange) {
+                    DateRangeFilter.ALL -> Long.MAX_VALUE
+                    DateRangeFilter.THIS_MONTH -> {
+                        val cal = Calendar.getInstance()
+                        cal.set(Calendar.DAY_OF_MONTH, 1)
+                        cal.add(Calendar.MONTH, 1)
+                        cal.set(Calendar.HOUR_OF_DAY, 0)
+                        cal.set(Calendar.MINUTE, 0)
+                        cal.set(Calendar.SECOND, 0)
+                        cal.set(Calendar.MILLISECOND, 0)
+                        cal.timeInMillis - 1L
+                    }
+                    DateRangeFilter.LAST_30_DAYS -> now
+                }
 
                 val filtered = allTransactions.filter { item ->
-                    val matchesDate = item.timestamp >= minTimestamp
+                    val matchesDate = item.timestamp in minTimestamp..maxTimestamp
                     val matchesType = filters.type == null || item.type == filters.type
                     val matchesCategory = filters.categoryId == null || item.categoryId == filters.categoryId
                     val matchesQuery = filters.query.isBlank() ||

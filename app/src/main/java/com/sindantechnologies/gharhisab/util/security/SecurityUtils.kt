@@ -116,6 +116,27 @@ object SecurityUtils {
         return cipher.doFinal(cipherText)
     }
 
+    fun normalizePinDigits(value: String): String = value.map { character ->
+        character.digitToIntOrNull()?.let { ('0'.code + it).toChar() } ?: character
+    }.joinToString("")
+
+    /** Recovery codes have 128 random bits, so they do not need a slow password KDF. */
+    fun hashRecoveryKey(code: String, salt: ByteArray): String {
+        val hash = java.security.MessageDigest.getInstance("SHA-256")
+        hash.update("GharHisab PIN recovery v2\u0000".toByteArray(Charsets.UTF_8))
+        hash.update(salt)
+        return "r2:" + bytesToHex(hash.digest(code.toByteArray(Charsets.UTF_8)))
+    }
+
+    fun verifyRecoveryKey(candidate: String, saltHex: String, expected: String): Boolean = runCatching {
+        val code = candidate.trim().replace("-", "").replace(" ", "").uppercase(java.util.Locale.ROOT)
+        if (!expected.startsWith("r2:")) return verifyPin(code, saltHex, expected)
+        java.security.MessageDigest.isEqual(
+            hexToBytes(hashRecoveryKey(code, hexToBytes(saltHex)).removePrefix("r2:")),
+            hexToBytes(expected.removePrefix("r2:")),
+        )
+    }.getOrDefault(false)
+
     fun bytesToHex(bytes: ByteArray): String {
         val hexChars = "0123456789ABCDEF"
         val result = StringBuilder(bytes.size * 2)

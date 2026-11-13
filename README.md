@@ -14,10 +14,16 @@ bash gradlew :app:assembleDebug :app:testDebugUnitTest :app:lintDebug :app:assem
 
 APK: `app/build/outputs/apk/debug/app-debug.apk`. Open the project in Android Studio for device development. The stack is Kotlin 2.0, Compose Material 3, MVVM, Navigation Compose, Room and Preferences DataStore, built with Gradle 8.7/AGP 8.4.
 
+## Test APK
+
+Download the installable APK from [GitHub Releases](https://github.com/SAAD-2113/GHAR-HISAB-APP/releases). The latest test build is **v3.0.0-rc.2**. The automatically generated source archives are not APKs. These are debug-signed prereleases; real-device acceptance is still pending.
+
 ## Configuration and verification
 
 - [Version 3 implementation, formulas, migrations, tests and limitations](docs/VERSION_3_PROGRESS.md)
 - [Google Cloud / Drive setup and device migration](docs/GOOGLE_DRIVE_SETUP.md)
+- [Current validation coverage and physical-device checklist](docs/APP_VALIDATION.md)
+- [Voice entry behavior and supported parsing](docs/VOICE_ENTRY.md)
 
 Google Cloud configuration and real-device acceptance are still required before production release. Offline builds need no OAuth credentials. Never commit signing keys, OAuth tokens or backup recovery credentials.
 
