@@ -43,18 +43,15 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -73,6 +70,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.sindantechnologies.gharhisab.ui.theme.AppTextButton as TextButton
+import com.sindantechnologies.gharhisab.ui.theme.actionText
+import com.sindantechnologies.gharhisab.ui.theme.AppQuickActionButton
 import com.sindantechnologies.gharhisab.R
 import com.sindantechnologies.gharhisab.domain.model.TransactionType
 import com.sindantechnologies.gharhisab.ui.components.SummaryCard
@@ -199,9 +199,9 @@ fun HomeScreen(
                 item {
                     Button(
                         onClick = { showVoiceDialog = true },
-                        colors = ButtonDefaults.buttonColors(
+                        colors = if (isDarkTheme) ButtonDefaults.buttonColors() else ButtonDefaults.buttonColors(
                             containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                            contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                            contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
                         ),
                         shape = RoundedCornerShape(Dimens.RadiusFull),
                     ) {
@@ -211,7 +211,7 @@ fun HomeScreen(
                     }
                 }
                 item {
-                    OutlinedButton(
+                    AppQuickActionButton(
                         onClick = onNavigateToBudgets,
                         shape = RoundedCornerShape(Dimens.RadiusFull),
                     ) {
@@ -221,7 +221,7 @@ fun HomeScreen(
                     }
                 }
                 item {
-                    OutlinedButton(
+                    AppQuickActionButton(
                         onClick = onNavigateToPlannedExpenses,
                         shape = RoundedCornerShape(Dimens.RadiusFull),
                     ) {
@@ -301,7 +301,7 @@ fun HomeScreen(
                             Icon(
                                 imageVector = Icons.Filled.PieChart,
                                 contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
+                                tint = MaterialTheme.colorScheme.actionText,
                                 modifier = Modifier.size(Dimens.IconMd)
                             )
                             Spacer(modifier = Modifier.width(Dimens.SpacingSm))
@@ -414,7 +414,7 @@ fun HomeScreen(
                                 text = CurrencyFormatter.formatPaisa(plan.expectedAmount),
                                 style = MaterialTheme.typography.titleSmall,
                                 fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.primary
+                                color = MaterialTheme.colorScheme.actionText
                             )
                         }
                     }

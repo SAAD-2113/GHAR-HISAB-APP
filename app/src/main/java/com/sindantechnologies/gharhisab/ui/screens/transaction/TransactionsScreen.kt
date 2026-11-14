@@ -28,7 +28,6 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -46,6 +45,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.sindantechnologies.gharhisab.ui.theme.appOutlinedTextFieldColors
+import com.sindantechnologies.gharhisab.ui.theme.AppFilterChip as FilterChip
 import com.sindantechnologies.gharhisab.R
 import com.sindantechnologies.gharhisab.domain.model.TransactionType
 import com.sindantechnologies.gharhisab.ui.theme.Dimens
@@ -108,7 +109,8 @@ fun TransactionsScreen(
                 shape = RoundedCornerShape(Dimens.RadiusMd),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = Dimens.SpacingLg, vertical = Dimens.SpacingXs)
+                    .padding(horizontal = Dimens.SpacingLg, vertical = Dimens.SpacingXs),
+                colors = appOutlinedTextFieldColors(),
             )
 
             // Filter Chips Row: Type & Date

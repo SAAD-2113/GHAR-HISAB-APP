@@ -36,7 +36,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -47,7 +46,6 @@ import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberDatePickerState
@@ -58,7 +56,13 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.res.stringResource
+import com.sindantechnologies.gharhisab.ui.theme.appOutlinedTextFieldColors
+import com.sindantechnologies.gharhisab.ui.theme.appDatePickerColors
+import com.sindantechnologies.gharhisab.ui.theme.AppFilterChip as FilterChip
+import com.sindantechnologies.gharhisab.ui.theme.AppTextButton as TextButton
 import com.sindantechnologies.gharhisab.R
+import com.sindantechnologies.gharhisab.ui.theme.isMidnight
+import com.sindantechnologies.gharhisab.ui.theme.appSegmentedButtonColors
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -112,7 +116,7 @@ fun EditTransactionScreen(
                 }
             }
         ) {
-            DatePicker(state = datePickerState)
+            DatePicker(state = datePickerState, colors = appDatePickerColors())
         }
     }
 
@@ -127,7 +131,7 @@ fun EditTransactionScreen(
                         showDeleteConfirm = false
                         viewModel.deleteTransaction()
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                    colors = ButtonDefaults.buttonColors(containerColor = if (MaterialTheme.colorScheme.isMidnight) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error, contentColor = MaterialTheme.colorScheme.onPrimary)
                 ) {
                     Text(stringResource(R.string.action_delete))
                 }
@@ -227,6 +231,7 @@ fun EditTransactionScreen(
                         .padding(horizontal = Dimens.SpacingLg, vertical = Dimens.SpacingSm)
                 ) {
                     SegmentedButton(
+                        colors = appSegmentedButtonColors(),
                         selected = uiState.transactionType == TransactionType.EXPENSE,
                         onClick = { viewModel.onTransactionTypeChanged(TransactionType.EXPENSE) },
                         shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
@@ -234,13 +239,16 @@ fun EditTransactionScreen(
                             Icon(
                                 Icons.AutoMirrored.Filled.TrendingDown,
                                 contentDescription = null,
-                                tint = if (uiState.transactionType == TransactionType.EXPENSE) ExpenseRed else MaterialTheme.colorScheme.onSurfaceVariant
+                                tint = if (uiState.transactionType == TransactionType.EXPENSE) {
+                                if (MaterialTheme.colorScheme.isMidnight) MaterialTheme.colorScheme.onPrimary else ExpenseRed
+                            } else MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     ) {
                         Text(stringResource(R.string.home_expense), fontWeight = FontWeight.Bold)
                     }
                     SegmentedButton(
+                        colors = appSegmentedButtonColors(),
                         selected = uiState.transactionType == TransactionType.INCOME,
                         onClick = { viewModel.onTransactionTypeChanged(TransactionType.INCOME) },
                         shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
@@ -248,7 +256,9 @@ fun EditTransactionScreen(
                             Icon(
                                 Icons.AutoMirrored.Filled.TrendingUp,
                                 contentDescription = null,
-                                tint = if (uiState.transactionType == TransactionType.INCOME) IncomeGreen else MaterialTheme.colorScheme.onSurfaceVariant
+                                tint = if (uiState.transactionType == TransactionType.INCOME) {
+                                if (MaterialTheme.colorScheme.isMidnight) MaterialTheme.colorScheme.onPrimary else IncomeGreen
+                            } else MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     ) {
@@ -273,7 +283,8 @@ fun EditTransactionScreen(
                     textStyle = MaterialTheme.typography.headlineMedium.copy(
                         color = if (uiState.transactionType == TransactionType.INCOME) IncomeGreen else ExpenseRed,
                         fontWeight = FontWeight.Bold
-                    )
+                    ),
+                    colors = appOutlinedTextFieldColors(),
                 )
 
                 Spacer(modifier = Modifier.height(Dimens.SpacingMd))
@@ -287,6 +298,7 @@ fun EditTransactionScreen(
                         .padding(horizontal = Dimens.SpacingLg),
                     label = { Text(stringResource(R.string.transaction_description)) },
                     singleLine = true,
+                    colors = appOutlinedTextFieldColors(),
                 )
 
                 Spacer(modifier = Modifier.height(Dimens.SpacingMd))

@@ -22,7 +22,12 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.core.app.NotificationManagerCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.sindantechnologies.gharhisab.ui.theme.appOutlinedTextFieldColors
+import com.sindantechnologies.gharhisab.ui.theme.appDatePickerColors
+import com.sindantechnologies.gharhisab.ui.theme.AppFilterChip as FilterChip
+import com.sindantechnologies.gharhisab.ui.theme.AppTextButton as TextButton
 import com.sindantechnologies.gharhisab.R
+import com.sindantechnologies.gharhisab.ui.theme.isMidnight
 import com.sindantechnologies.gharhisab.data.local.room.entity.*
 import com.sindantechnologies.gharhisab.domain.model.*
 import com.sindantechnologies.gharhisab.util.CurrencyFormatter
@@ -46,7 +51,11 @@ fun PlannedExpensesScreen(viewModel: PlannedExpensesViewModel, onNavigateBack: (
         topBar = { TopAppBar(title = { Text(stringResource(R.string.plans_title)) }, navigationIcon = {
             IconButton(onClick = onNavigateBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.action_back)) }
         }) },
-        floatingActionButton = { FloatingActionButton(onClick = { creating = true }) { Icon(Icons.Default.Add, stringResource(R.string.plan_add)) } },
+        floatingActionButton = { FloatingActionButton(
+            onClick = { creating = true },
+            containerColor = if (MaterialTheme.colorScheme.isMidnight) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primaryContainer,
+            contentColor = if (MaterialTheme.colorScheme.isMidnight) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer,
+        ) { Icon(Icons.Default.Add, stringResource(R.string.plan_add)) } },
     ) { padding ->
         LazyColumn(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             if (!permissionGranted) item {
@@ -109,7 +118,7 @@ fun PlannedExpensesScreen(viewModel: PlannedExpensesViewModel, onNavigateBack: (
         AlertDialog(onDismissRequest = { paying = null }, title = { Text(stringResource(R.string.plan_mark_paid)) }, text = {
             Column(Modifier.verticalScroll(rememberScrollState())) {
                 Text(stringResource(R.string.plan_paid_confirm, plan.description, CurrencyFormatter.formatPaisa(plan.expectedAmount)))
-                OutlinedTextField(paidAmount, { paidAmount = it }, label = { Text(stringResource(R.string.transaction_amount)) }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
+                OutlinedTextField(paidAmount, { paidAmount = it }, label = { Text(stringResource(R.string.transaction_amount)) }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), colors = appOutlinedTextFieldColors())
                 FlowRow { PaymentMethod.entries.forEach { option ->
                     FilterChip(selected = method == option, onClick = { method = option }, label = { Text(stringResource(com.sindantechnologies.gharhisab.ui.screens.transaction.paymentMethodLabel(option))) })
                 } }
@@ -145,19 +154,19 @@ private fun PlanEditor(original: PlannedExpenseEntity?, categories: List<Categor
                 value.selectedDateMillis?.let { date = Instant.ofEpochMilli(it).atZone(ZoneOffset.UTC).toLocalDate().atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli() }
                 picker = false
             }) { Text(stringResource(R.string.action_ok)) }
-        }) { DatePicker(value) }
+        }) { DatePicker(value, colors = appDatePickerColors()) }
     }
     AlertDialog(onDismissRequest = onDismiss, title = { Text(stringResource(R.string.plan_add)) }, text = {
         Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedTextField(title, { title = it }, label = { Text(stringResource(R.string.plan_title)) })
-            OutlinedTextField(amount, { amount = it }, label = { Text(stringResource(R.string.transaction_amount)) }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
+            OutlinedTextField(title, { title = it }, label = { Text(stringResource(R.string.plan_title)) }, colors = appOutlinedTextFieldColors())
+            OutlinedTextField(amount, { amount = it }, label = { Text(stringResource(R.string.transaction_amount)) }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), colors = appOutlinedTextFieldColors())
             FlowRow { categories.forEach { cat -> FilterChip(category == cat.id, { category = cat.id }, label = { Text(cat.name) }) } }
             TextButton(onClick = { picker = true }) { Text(stringResource(R.string.transaction_date) + ": " + Instant.ofEpochMilli(date).atZone(ZoneId.systemDefault()).toLocalDate()) }
-            OutlinedTextField(notes, { notes = it }, label = { Text(stringResource(R.string.transaction_description)) })
+            OutlinedTextField(notes, { notes = it }, label = { Text(stringResource(R.string.transaction_description)) }, colors = appOutlinedTextFieldColors())
             FlowRow { listOf("NONE" to R.string.repeat_none, "WEEKLY" to R.string.repeat_weekly, "MONTHLY" to R.string.repeat_monthly, "YEARLY" to R.string.repeat_yearly).forEach { (key, label) ->
                 FilterChip(recurrence == key, { recurrence = key }, label = { Text(stringResource(label)) })
             } }
-            if (recurrence != "NONE") OutlinedTextField(interval, { interval = it }, label = { Text(stringResource(R.string.repeat_interval)) }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+            if (recurrence != "NONE") OutlinedTextField(interval, { interval = it }, label = { Text(stringResource(R.string.repeat_interval)) }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), colors = appOutlinedTextFieldColors())
             Row { Checkbox(enabled, { enabled = it }); Text(stringResource(R.string.reminders_title)) }
             if (enabled) FlowRow { listOf(0, 1, 3, 7).forEach { offset ->
                 FilterChip(offset in offsets, { offsets = if (offset in offsets) offsets - offset else offsets + offset }, label = { Text(stringResource(R.string.reminder_days_before, offset)) })

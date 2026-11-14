@@ -4,7 +4,7 @@ This document separates automated checks from testing that needs an Android phon
 
 ## Execution record
 
-**Verified on 13 November 2026:** the complete command below passed on the final source revision. **115 tests passed; zero failures, errors or skips.** Android lint completed with **0 errors, 92 warnings and 1 informational finding**. App and instrumentation APKs built successfully. This is automated host verification, not physical-device acceptance.
+**Verified on 14 November 2026:** the complete command below passed on the final source revision. **115 tests passed; zero failures, errors or skips.** Android lint completed with **0 errors, 92 warnings and 1 informational finding**. App and instrumentation APKs built successfully. This is automated host verification, not physical-device acceptance.
 
 | Check | Current result |
 | --- | --- |
@@ -72,7 +72,11 @@ These images are rendered by Robolectric from the real Compose screens using syn
 - [Midnight switch at 1.8× text with RTL layout](images/financial-insights-midnight-rtl.png)
 - [App PIN screen](images/app-lock.png)
 - [Small-screen Home navigation](images/home-small-screen.png)
+- [Classic splash with the original company-logo size](images/splash-classic.png)
+- [Midnight splash with the original company-logo size](images/splash-midnight.png)
 
-The APK retains version 3.0.0 / code 4 and the existing debug signing identity. No signing configuration was changed. The owner approved source and APK publication after these checks. This build is prepared for GitHub prerelease `v3.0.0-rc.2`; physical-device acceptance remains pending.
+The 14 November styling follow-up uses deep red filled controls with white content in Midnight. The company-logo asset has stronger outlines and opaque white lettering; the existing normal and compact splash size constraints and padding are unchanged. A temporary host capture harness rendered both themes at normal and compact sizes; it was removed after visual inspection. These visual previews are separate from the 115-test regression suite.
 
-Final debug APK SHA-256: `3bbae34740f880fde4558b6035f6ace2d7faf33e69fca3179c2fc25c892793b7`.
+The APK retains version 3.0.0 / code 4 and the existing debug signing identity. No signing configuration was changed. The owner approved source and APK publication after these checks. This build is prepared for GitHub prerelease `v3.0.0-rc.3`; physical-device acceptance remains pending.
+
+Final debug APK SHA-256: `e71e96d9342a39772ec6ca5d7a110b0fe1f45ba362bd93fc221216886dec4eb3`.

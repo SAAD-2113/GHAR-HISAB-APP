@@ -15,6 +15,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import com.sindantechnologies.gharhisab.ui.theme.actionText
 import com.sindantechnologies.gharhisab.ui.theme.Dimens
 
 /**
@@ -54,7 +55,7 @@ fun SettingsItem(
             Icon(
                 imageVector = icon,
                 contentDescription = title,
-                tint = MaterialTheme.colorScheme.primary,
+                tint = MaterialTheme.colorScheme.actionText,
                 modifier = Modifier.size(Dimens.IconMd),
             )
             Text(

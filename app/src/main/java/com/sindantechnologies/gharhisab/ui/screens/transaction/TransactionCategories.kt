@@ -14,6 +14,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.sindantechnologies.gharhisab.R
+import com.sindantechnologies.gharhisab.ui.theme.isMidnight
 import com.sindantechnologies.gharhisab.data.local.room.entity.CategoryEntity
 import com.sindantechnologies.gharhisab.domain.model.PaymentMethod
 import com.sindantechnologies.gharhisab.ui.theme.Dimens
@@ -42,7 +43,12 @@ internal fun TransactionCategories(
                         ) {
                             Surface(
                                 shape = RoundedCornerShape(Dimens.RadiusMd),
-                                color = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
+                                color = if (selected) {
+                                    if (MaterialTheme.colorScheme.isMidnight) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primaryContainer
+                                } else MaterialTheme.colorScheme.surfaceVariant,
+                                contentColor = if (selected) {
+                                    if (MaterialTheme.colorScheme.isMidnight) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer
+                                } else MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.size(52.dp),
                             ) {
                                 Box(contentAlignment = Alignment.Center) {

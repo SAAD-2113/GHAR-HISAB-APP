@@ -111,3 +111,10 @@ After the successful local checks, the owner authorized pushing the reliability 
 - Budget, starting-balance and reserve editors preserve fractional amounts. Budget warning percentages are restricted to 1–100. History filters have upper bounds, and Drive-to-local onboarding waits for preference persistence before navigating.
 
 No signing configuration, Room schema, existing user records or portable-backup encryption parameters were changed. New tests use synthetic data. The current verification record and remaining physical-phone checks are in [APP_VALIDATION.md](APP_VALIDATION.md). The owner approved committing these fixes, pushing them to GitHub and publishing the tested APK as prerelease `v3.0.0-rc.2`. Physical-device acceptance remains pending.
+
+
+## Dark-theme and splash branding follow-up — 14 November 2026
+
+- Midnight filled buttons and selected controls use the same deep red (`#B71C1C`) as Classic, with white content (6.57:1 contrast). Text actions and focused labels on dark surfaces use a light neutral foreground, keeping them legible independently of button fills. Classic control styling is preserved.
+- Sindan Technologies lettering now has opaque white interiors and stronger dark outlines. High-quality image filtering is used at the original splash logo size: the existing 40 dp normal / 32 dp compact height limits, padding and placement are unchanged.
+- Host-rendered splash previews cover Classic and Midnight, including compact layouts. These are automated previews, not physical-phone screenshots. See [the current validation report](APP_VALIDATION.md) for the final build results and device-testing limits.

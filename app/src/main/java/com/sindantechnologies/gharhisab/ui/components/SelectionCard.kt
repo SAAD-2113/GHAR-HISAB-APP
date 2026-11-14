@@ -22,6 +22,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.sindantechnologies.gharhisab.ui.theme.Dimens
+import com.sindantechnologies.gharhisab.ui.theme.isMidnight
 
 /**
  * A selectable card with a label and a check/radio indicator.
@@ -48,8 +49,10 @@ fun SelectionCard(
     )
 
     val containerColor by animateColorAsState(
-        targetValue = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
-        else MaterialTheme.colorScheme.surfaceVariant,
+        targetValue = if (isSelected) {
+            if (MaterialTheme.colorScheme.isMidnight) MaterialTheme.colorScheme.primary
+            else MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+        } else MaterialTheme.colorScheme.surfaceVariant,
         animationSpec = tween(durationMillis = 200),
         label = "container_color",
     )
@@ -73,7 +76,7 @@ fun SelectionCard(
             Text(
                 text = label,
                 style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurface,
+                color = if (isSelected && MaterialTheme.colorScheme.isMidnight) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier
                     .weight(1f)
                     .padding(end = Dimens.SpacingSm),
@@ -83,8 +86,9 @@ fun SelectionCard(
                 imageVector = if (isSelected) Icons.Filled.CheckCircle
                 else Icons.Outlined.RadioButtonUnchecked,
                 contentDescription = if (isSelected) "Selected" else "Not selected",
-                tint = if (isSelected) MaterialTheme.colorScheme.primary
-                else MaterialTheme.colorScheme.onSurfaceVariant,
+                tint = if (isSelected) {
+                    if (MaterialTheme.colorScheme.isMidnight) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.primary
+                } else MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
     }

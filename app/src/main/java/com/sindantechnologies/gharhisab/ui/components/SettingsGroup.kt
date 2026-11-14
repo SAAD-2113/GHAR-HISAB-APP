@@ -9,6 +9,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import com.sindantechnologies.gharhisab.ui.theme.actionText
 import com.sindantechnologies.gharhisab.ui.theme.Dimens
 
 /**
@@ -32,7 +33,7 @@ fun SettingsGroup(
         Text(
             text = title.uppercase(),
             style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.primary,
+            color = MaterialTheme.colorScheme.actionText,
             modifier = Modifier.padding(
                 start = Dimens.SpacingXs,
                 bottom = Dimens.SpacingSm,

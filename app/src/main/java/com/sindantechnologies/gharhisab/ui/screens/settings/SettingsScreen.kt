@@ -40,7 +40,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -60,6 +59,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import com.sindantechnologies.gharhisab.ui.theme.appOutlinedTextFieldColors
+import com.sindantechnologies.gharhisab.ui.theme.AppTextButton as TextButton
 import com.sindantechnologies.gharhisab.R
 import com.sindantechnologies.gharhisab.data.backup.BackupManager
 import com.sindantechnologies.gharhisab.data.local.datastore.UserPreferencesRepository
@@ -122,7 +123,7 @@ fun SettingsScreen(
         var failed by remember { mutableStateOf(false) }
         AlertDialog(onDismissRequest = { if (!busy) pendingSecurityAction = null }, title = { Text(stringResource(R.string.lock_unlock)) },
             text = { Column(Modifier.verticalScroll(rememberScrollState())) {
-                OutlinedTextField(pin, { pin = SecurityUtils.normalizePinDigits(it).take(4) }, enabled = !busy, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword), visualTransformation = PasswordVisualTransformation(), label = { Text(stringResource(R.string.lock_pin)) })
+                OutlinedTextField(pin, { pin = SecurityUtils.normalizePinDigits(it).take(4) }, enabled = !busy, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword), visualTransformation = PasswordVisualTransformation(), label = { Text(stringResource(R.string.lock_pin)) }, colors = appOutlinedTextFieldColors())
                 if (failed) Text(stringResource(R.string.lock_failed))
             } }, confirmButton = { Button(enabled = !busy, onClick = {
                 busy = true
@@ -266,7 +267,8 @@ fun SettingsScreen(
                         label = { Text("Available Cash / Balance") },
                         prefix = { Text("${Constants.CURRENCY_SYMBOL} ") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = appOutlinedTextFieldColors(),
                     )
                 }
             },
@@ -308,7 +310,8 @@ fun SettingsScreen(
                         label = { Text("Protected Reserve Amount") },
                         prefix = { Text("${Constants.CURRENCY_SYMBOL} ") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = appOutlinedTextFieldColors(),
                     )
                 }
             },
@@ -417,7 +420,8 @@ fun SettingsScreen(
                         label = { Text("Enter 4-Digit PIN") },
                         visualTransformation = PasswordVisualTransformation(),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = appOutlinedTextFieldColors(),
                     )
                     Spacer(modifier = Modifier.height(Dimens.SpacingSm))
                     OutlinedTextField(
@@ -429,7 +433,8 @@ fun SettingsScreen(
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
                         isError = pinError != null,
                         supportingText = pinError?.let { { Text(it) } },
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = appOutlinedTextFieldColors(),
                     )
                 }
             },
@@ -547,7 +552,8 @@ fun SettingsScreen(
                         label = { Text("Backup Password") },
                         visualTransformation = PasswordVisualTransformation(),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = appOutlinedTextFieldColors(),
                     )
                     Spacer(modifier = Modifier.height(Dimens.SpacingSm))
                     OutlinedTextField(
@@ -558,7 +564,8 @@ fun SettingsScreen(
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                         isError = exportError != null,
                         supportingText = exportError?.let { { Text(it) } },
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = appOutlinedTextFieldColors(),
                     )
                 }
             },
@@ -610,7 +617,8 @@ fun SettingsScreen(
                         isError = importError != null,
                         supportingText = importError?.let { { Text(it) } },
                         enabled = !isRestoring,
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = appOutlinedTextFieldColors(),
                     )
                 }
             },

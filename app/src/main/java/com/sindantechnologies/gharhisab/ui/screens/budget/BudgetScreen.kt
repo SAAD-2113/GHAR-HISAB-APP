@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.PieChart
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenuItem
@@ -39,7 +40,6 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -55,6 +55,9 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.sindantechnologies.gharhisab.ui.theme.appOutlinedTextFieldColors
+import com.sindantechnologies.gharhisab.ui.theme.AppTextButton as TextButton
+import com.sindantechnologies.gharhisab.ui.theme.actionText
 import com.sindantechnologies.gharhisab.data.local.room.entity.CategoryEntity
 import com.sindantechnologies.gharhisab.ui.theme.Dimens
 import com.sindantechnologies.gharhisab.ui.theme.ExpenseRed
@@ -106,7 +109,8 @@ fun BudgetScreen(
                         label = { Text("Monthly Budget Amount") },
                         prefix = { Text("${Constants.CURRENCY_SYMBOL} ") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = appOutlinedTextFieldColors(),
                     )
                     Spacer(modifier = Modifier.height(Dimens.SpacingSm))
                     OutlinedTextField(
@@ -117,7 +121,8 @@ fun BudgetScreen(
                         isError = warningThresholdText.isNotEmpty() && warningThreshold !in 1..100,
                         supportingText = { Text("Choose a percentage from 1 to 100.") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = appOutlinedTextFieldColors(),
                     )
                 }
             },
@@ -174,7 +179,8 @@ fun BudgetScreen(
                             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
                             modifier = Modifier
                                 .menuAnchor(MenuAnchorType.PrimaryNotEditable)
-                                .fillMaxWidth()
+                                .fillMaxWidth(),
+                            colors = appOutlinedTextFieldColors(),
                         )
                         ExposedDropdownMenu(
                             expanded = expanded,
@@ -199,7 +205,8 @@ fun BudgetScreen(
                         label = { Text("Category Budget Amount") },
                         prefix = { Text("${Constants.CURRENCY_SYMBOL} ") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = appOutlinedTextFieldColors(),
                     )
                     Spacer(modifier = Modifier.height(Dimens.SpacingSm))
                     OutlinedTextField(
@@ -210,7 +217,8 @@ fun BudgetScreen(
                         isError = warningThresholdText.isNotEmpty() && warningThreshold !in 1..100,
                         supportingText = { Text("Choose a percentage from 1 to 100.") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = appOutlinedTextFieldColors(),
                     )
                 }
             },
@@ -419,6 +427,7 @@ fun BudgetScreen(
                     color = MaterialTheme.colorScheme.onBackground
                 )
                 OutlinedButton(
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.actionText),
                     onClick = {
                         selectedCategoryForBudget = null
                         showCategoryBudgetDialog = true
@@ -482,7 +491,7 @@ fun BudgetScreen(
                                     Icon(
                                         imageVector = IconMapper.getIcon(catBudget.category.iconKey),
                                         contentDescription = catBudget.category.name,
-                                        tint = MaterialTheme.colorScheme.primary,
+                                        tint = MaterialTheme.colorScheme.actionText,
                                         modifier = Modifier.size(Dimens.IconMd)
                                     )
                                     Spacer(modifier = Modifier.width(Dimens.SpacingSm))

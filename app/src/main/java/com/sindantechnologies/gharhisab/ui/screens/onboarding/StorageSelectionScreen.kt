@@ -41,11 +41,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.sindantechnologies.gharhisab.ui.theme.actionText
 import com.sindantechnologies.gharhisab.R
 import com.sindantechnologies.gharhisab.domain.model.StorageOption
 import com.sindantechnologies.gharhisab.ui.components.ComingSoonDialog
 import com.sindantechnologies.gharhisab.ui.components.GharHisabButton
 import com.sindantechnologies.gharhisab.ui.theme.Dimens
+import com.sindantechnologies.gharhisab.ui.theme.isMidnight
 
 /**
  * Storage selection onboarding screen with responsive layout.
@@ -163,8 +165,10 @@ private fun StorageOptionCard(
     )
 
     val containerColor by animateColorAsState(
-        targetValue = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
-        else MaterialTheme.colorScheme.surfaceVariant,
+        targetValue = if (isSelected) {
+            if (MaterialTheme.colorScheme.isMidnight) MaterialTheme.colorScheme.primary
+            else MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+        } else MaterialTheme.colorScheme.surfaceVariant,
         animationSpec = tween(durationMillis = 200),
         label = "storage_container",
     )
@@ -194,7 +198,7 @@ private fun StorageOptionCard(
                     Icon(
                         imageVector = icon,
                         contentDescription = title,
-                        tint = MaterialTheme.colorScheme.primary,
+                        tint = if (isSelected && MaterialTheme.colorScheme.isMidnight) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.actionText,
                         modifier = Modifier.size(Dimens.IconLg),
                     )
                     Row(
@@ -205,7 +209,7 @@ private fun StorageOptionCard(
                             text = title,
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurface,
+                            color = if (isSelected && MaterialTheme.colorScheme.isMidnight) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
                         )
                         if (badgeText != null) {
                             Badge(
@@ -226,8 +230,9 @@ private fun StorageOptionCard(
                     imageVector = if (isSelected) Icons.Filled.CheckCircle
                     else Icons.Outlined.RadioButtonUnchecked,
                     contentDescription = if (isSelected) "Selected" else "Not selected",
-                    tint = if (isSelected) MaterialTheme.colorScheme.primary
-                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                    tint = if (isSelected) {
+                        if (MaterialTheme.colorScheme.isMidnight) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.primary
+                    } else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
 
@@ -242,7 +247,7 @@ private fun StorageOptionCard(
                             modifier = Modifier
                                 .size(6.dp)
                                 .background(
-                                    color = MaterialTheme.colorScheme.primary,
+                                    color = if (isSelected && MaterialTheme.colorScheme.isMidnight) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.actionText,
                                     shape = MaterialTheme.shapes.extraSmall,
                                 ),
                         )
@@ -250,7 +255,7 @@ private fun StorageOptionCard(
                         Text(
                             text = feature,
                             style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            color = if (isSelected && MaterialTheme.colorScheme.isMidnight) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                 }

@@ -15,6 +15,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.*
 import androidx.compose.ui.unit.dp
+import com.sindantechnologies.gharhisab.ui.theme.appOutlinedTextFieldColors
+import com.sindantechnologies.gharhisab.ui.theme.AppTextButton as TextButton
 import com.sindantechnologies.gharhisab.R
 import com.sindantechnologies.gharhisab.data.local.datastore.UserPreferencesRepository
 import com.sindantechnologies.gharhisab.domain.model.AppLockMode
@@ -56,7 +58,7 @@ fun LockScreen(repository: UserPreferencesRepository, lockMode: AppLockMode, onU
                         }, enabled = !working, singleLine = true,
                             label = { Text(stringResource(if (recovery) R.string.recovery_key else R.string.lock_pin)) },
                             visualTransformation = PasswordVisualTransformation(), keyboardOptions = KeyboardOptions(keyboardType = if (recovery) KeyboardType.Password else KeyboardType.NumberPassword),
-                            modifier = Modifier.fillMaxWidth(), isError = failed)
+                            modifier = Modifier.fillMaxWidth(), isError = failed, colors = appOutlinedTextFieldColors())
                         Button(enabled = !working && if (recovery) input.isNotBlank() else input.length == 4, modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp), onClick = {
                             busy = true; failed = false
                             scope.launch {

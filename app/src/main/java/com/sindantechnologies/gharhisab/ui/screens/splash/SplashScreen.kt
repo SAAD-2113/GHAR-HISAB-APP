@@ -31,7 +31,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.FilterQuality
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.imageResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -56,6 +60,10 @@ fun SplashScreen(
     onNavigateToOnboarding: () -> Unit,
     onNavigateToHome: () -> Unit,
 ) {
+    val companyLogo = ImageBitmap.imageResource(R.drawable.sindan_logo)
+    val companyLogoPainter = remember(companyLogo) {
+        BitmapPainter(companyLogo, filterQuality = FilterQuality.High)
+    }
     var startAnimation by remember { mutableStateOf(false) }
     val alphaAnim by animateFloatAsState(
         targetValue = if (startAnimation) 1f else 0f,
@@ -178,7 +186,7 @@ fun SplashScreen(
                         modifier = Modifier.padding(horizontal = Dimens.SpacingMd, vertical = Dimens.SpacingXs),
                     ) {
                         Image(
-                            painter = painterResource(id = R.drawable.sindan_logo),
+                            painter = companyLogoPainter,
                             contentDescription = stringResource(R.string.splash_company_logo_description),
                             contentScale = ContentScale.Fit,
                             modifier = Modifier
@@ -188,7 +196,7 @@ fun SplashScreen(
                     }
                 } else {
                     Image(
-                        painter = painterResource(id = R.drawable.sindan_logo),
+                        painter = companyLogoPainter,
                         contentDescription = stringResource(R.string.splash_company_logo_description),
                         contentScale = ContentScale.Fit,
                         modifier = Modifier.heightIn(max = companyLogoHeight),

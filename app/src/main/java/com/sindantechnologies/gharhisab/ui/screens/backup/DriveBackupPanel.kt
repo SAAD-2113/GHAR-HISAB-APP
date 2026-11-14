@@ -14,6 +14,9 @@ import androidx.compose.ui.unit.dp
 import com.google.android.gms.auth.api.identity.*
 import com.google.android.gms.common.api.ApiException
 import com.google.android.gms.common.api.Scope
+import com.sindantechnologies.gharhisab.ui.theme.appOutlinedTextFieldColors
+import com.sindantechnologies.gharhisab.ui.theme.AppFilterChip as FilterChip
+import com.sindantechnologies.gharhisab.ui.theme.AppTextButton as TextButton
 import com.sindantechnologies.gharhisab.R
 
 @Composable
@@ -84,8 +87,8 @@ fun DriveBackupPanel(model: BackupViewModel, onDismiss: () -> Unit) {
                 }
             }) { Text(stringResource(R.string.drive_connect)) }
             else {
-                OutlinedTextField(password, { password = it }, enabled = !model.busy, label = { Text(stringResource(R.string.backup_password)) }, visualTransformation = PasswordVisualTransformation(), keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Password))
-                OutlinedTextField(confirmation, { confirmation = it }, enabled = !model.busy, label = { Text(stringResource(R.string.backup_confirm_password)) }, visualTransformation = PasswordVisualTransformation(), keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Password))
+                OutlinedTextField(password, { password = it }, enabled = !model.busy, label = { Text(stringResource(R.string.backup_password)) }, visualTransformation = PasswordVisualTransformation(), keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Password), colors = appOutlinedTextFieldColors())
+                OutlinedTextField(confirmation, { confirmation = it }, enabled = !model.busy, label = { Text(stringResource(R.string.backup_confirm_password)) }, visualTransformation = PasswordVisualTransformation(), keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Password), colors = appOutlinedTextFieldColors())
                 Text(stringResource(R.string.backup_recovery_warning))
                 Button(enabled = !model.busy && password.length >= 12 && password == confirmation, onClick = {
                     model.upload(password); password = ""; confirmation = ""

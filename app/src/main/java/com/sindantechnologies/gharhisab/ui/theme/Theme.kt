@@ -44,8 +44,8 @@ private val ClassicColorScheme = lightColorScheme(
  * Midnight (Dark) color scheme.
  */
 private val MidnightColorScheme = darkColorScheme(
-    primary = ExpenseRedLight,
-    onPrimary = ClassicOnPrimaryContainer,
+    primary = DeepRed,
+    onPrimary = OnPrimary,
     primaryContainer = MidnightPrimaryContainer,
     onPrimaryContainer = MidnightOnPrimaryContainer,
     secondary = RoyalGold,

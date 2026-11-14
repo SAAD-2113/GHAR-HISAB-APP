@@ -41,7 +41,6 @@ import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -51,7 +50,6 @@ import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -70,6 +68,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.core.content.ContextCompat
+import com.sindantechnologies.gharhisab.ui.theme.appOutlinedTextFieldColors
+import com.sindantechnologies.gharhisab.ui.theme.AppFilterChip as FilterChip
+import com.sindantechnologies.gharhisab.ui.theme.AppTextButton as TextButton
 import com.sindantechnologies.gharhisab.data.local.room.entity.CategoryEntity
 import com.sindantechnologies.gharhisab.data.local.room.entity.TransactionEntity
 import com.sindantechnologies.gharhisab.domain.model.PaymentMethod
@@ -82,6 +83,9 @@ import com.sindantechnologies.gharhisab.util.CurrencyFormatter
 import com.sindantechnologies.gharhisab.util.IconMapper
 import com.sindantechnologies.gharhisab.util.VoiceEntryDraft
 import com.sindantechnologies.gharhisab.R
+import com.sindantechnologies.gharhisab.ui.theme.isMidnight
+import com.sindantechnologies.gharhisab.ui.theme.appSegmentedButtonColors
+import com.sindantechnologies.gharhisab.ui.theme.actionText
 import androidx.compose.ui.res.stringResource
 import kotlinx.coroutines.CancellationException
 import com.sindantechnologies.gharhisab.util.ParsedVoiceTransaction
@@ -339,7 +343,7 @@ fun VoiceEntryDialog(
                             }
                         },
                         shape = CircleShape,
-                        color = if (isListening) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primaryContainer,
+                        color = if (isListening || MaterialTheme.colorScheme.isMidnight) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primaryContainer,
                         modifier = Modifier.size(72.dp),
                         shadowElevation = Dimens.ElevationMd
                     ) {
@@ -347,7 +351,7 @@ fun VoiceEntryDialog(
                             Icon(
                                 imageVector = if (isListening) Icons.Filled.Mic else Icons.Filled.MicOff,
                                 contentDescription = if (isListening) "Listening..." else "Tap to speak",
-                                tint = if (isListening) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer,
+                                tint = if (isListening || MaterialTheme.colorScheme.isMidnight) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer,
                                 modifier = Modifier.size(Dimens.IconLg)
                             )
                         }
@@ -363,7 +367,7 @@ fun VoiceEntryDialog(
                     },
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.Medium,
-                    color = if (isListening) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                    color = if (isListening) MaterialTheme.colorScheme.actionText else MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
                 // Error Message
@@ -428,6 +432,7 @@ fun VoiceEntryDialog(
                     // Type Selector
                     SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
                         SegmentedButton(
+                            colors = appSegmentedButtonColors(),
                             selected = editType == TransactionType.EXPENSE,
                             onClick = { draft = draft.copy(type = TransactionType.EXPENSE, manualType = true, category = draft.category?.takeIf { it.transactionType == TransactionType.EXPENSE }) },
                             enabled = !isSaving,
@@ -436,6 +441,7 @@ fun VoiceEntryDialog(
                             Text("Expense")
                         }
                         SegmentedButton(
+                            colors = appSegmentedButtonColors(),
                             selected = editType == TransactionType.INCOME,
                             onClick = { draft = draft.copy(type = TransactionType.INCOME, manualType = true, category = draft.category?.takeIf { it.transactionType == TransactionType.INCOME }) },
                             enabled = !isSaving,
@@ -455,7 +461,8 @@ fun VoiceEntryDialog(
                         label = { Text("Amount") },
                         prefix = { Text("${Constants.CURRENCY_SYMBOL} ") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = appOutlinedTextFieldColors(),
                     )
 
                     Spacer(modifier = Modifier.height(Dimens.SpacingMd))
@@ -467,7 +474,8 @@ fun VoiceEntryDialog(
                         enabled = !isSaving,
                         label = { Text("Description") },
                         singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = appOutlinedTextFieldColors(),
                     )
 
                     Spacer(modifier = Modifier.height(Dimens.SpacingMd))

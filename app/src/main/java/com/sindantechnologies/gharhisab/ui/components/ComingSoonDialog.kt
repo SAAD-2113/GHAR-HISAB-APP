@@ -3,9 +3,10 @@ package com.sindantechnologies.gharhisab.ui.components
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.stringResource
+import com.sindantechnologies.gharhisab.ui.theme.AppTextButton as TextButton
+import com.sindantechnologies.gharhisab.ui.theme.actionText
 import com.sindantechnologies.gharhisab.R
 
 /**
@@ -37,7 +38,7 @@ fun ComingSoonDialog(
             TextButton(onClick = onContinueLocal) {
                 Text(
                     text = stringResource(R.string.storage_continue_local),
-                    color = MaterialTheme.colorScheme.primary,
+                    color = MaterialTheme.colorScheme.actionText,
                 )
             }
         },

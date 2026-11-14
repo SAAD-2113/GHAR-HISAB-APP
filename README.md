@@ -16,7 +16,7 @@ APK: `app/build/outputs/apk/debug/app-debug.apk`. Open the project in Android St
 
 ## Test APK
 
-**[Download the latest APK (v3.0.0-rc.2)](https://github.com/SAAD-2113/GHAR-HISAB-APP/raw/refs/heads/main/releases/v3.0.0-rc.2/GharHisab-v3.0.0-rc.2-debug.apk)**. Only the latest APK is kept in [releases/](releases/) on `main`; [GitHub Releases](https://github.com/SAAD-2113/GHAR-HISAB-APP/releases) links to the same file. The automatically generated source archives are not APKs. This is a debug-signed prerelease; real-device acceptance is still pending.
+**[Download the latest APK (v3.0.0-rc.3)](https://github.com/SAAD-2113/GHAR-HISAB-APP/raw/refs/heads/main/releases/v3.0.0-rc.3/GharHisab-v3.0.0-rc.3-debug.apk)**. Only the latest APK is kept in [releases/](releases/) on `main`; [GitHub Releases](https://github.com/SAAD-2113/GHAR-HISAB-APP/releases) links to the same file. The automatically generated source archives are not APKs. This is a debug-signed prerelease; real-device acceptance is still pending.
 
 ## Configuration and verification
 
